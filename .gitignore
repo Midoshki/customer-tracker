@@ -6,8 +6,7 @@ node_modules/
 *.env
 .env.*
 
-# Supabase or API key files
-supabase.js
+
 
 # Build output
 build/
