@@ -53,6 +53,16 @@ const currentLocationIcon = new L.Icon({
   shadowSize: [41, 41]
 });
 
+// Add a distinct icon for filter center
+const filterCenterIcon = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-orange.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+});
+
 // Enhanced search function for Arabic text
 const fuzzySearch = (searchTerm, text) => {
   if (!searchTerm || !text) return false;
@@ -969,6 +979,40 @@ function App() {
     return colors[status] || colors.lead;
   };
 
+  // Helper: expand Google Maps short links
+  async function expandShortLink(url) {
+    try {
+      const res = await fetch(url, { method: 'HEAD', redirect: 'follow' });
+      return res.url;
+    } catch {
+      return url;
+    }
+  }
+
+  // Update map search handler to support short links
+  async function handleMapSearch(search, setLoading, setInput, setCenter, showNotification) {
+    setLoading(true);
+    let coords = null;
+    let input = search.trim();
+    if (input.includes('maps.app.goo.gl')) {
+      // Expand short link
+      const expanded = await expandShortLink(input);
+      coords = parseGoogleMapsLink(expanded);
+    } else {
+      coords = parseGoogleMapsLink(input);
+    }
+    if (!coords) {
+      coords = await geocodeAddress(input);
+    }
+    if (coords) {
+      setCenter(coords);
+      setInput('');
+    } else {
+      showNotification('Location not found. Try a different address or link.', 'warning');
+    }
+    setLoading(false);
+  }
+
   if (loading) {
     return (
       <div style={{ ...styles.container, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1618,18 +1662,7 @@ function App() {
                 style={styles.secondaryButton}
                 disabled={mapSearchLoading || !mapSearch}
                 onClick={async () => {
-                  setMapSearchLoading(true);
-                  let coords = parseGoogleMapsLink(mapSearch);
-                  if (!coords) {
-                    coords = await geocodeAddress(mapSearch);
-                  }
-                  if (coords) {
-                    setFilterCenter(coords);
-                    setMapSearch('');
-                  } else {
-                    showNotification('Location not found. Try a different address or link.', 'warning');
-                  }
-                  setMapSearchLoading(false);
+                  await handleMapSearch(mapSearch, setMapSearchLoading, setMapSearch, setFilterCenter, showNotification);
                 }}
               >
                 {mapSearchLoading ? 'Searching...' : 'Go'}
@@ -1715,6 +1748,16 @@ function App() {
                     </Marker>
                   );
                 })}
+                {filterCenter && (
+                  <Marker position={[filterCenter.lat, filterCenter.lng]} icon={filterCenterIcon}>
+                    <Popup>
+                      <div style={{ textAlign: 'center' }}>
+                        <b>Filter Center</b><br/>
+                        {filterCenter.lat.toFixed(6)}, {filterCenter.lng.toFixed(6)}
+                      </div>
+                    </Popup>
+                  </Marker>
+                )}
               </MapContainer>
             </div>
           </div>
