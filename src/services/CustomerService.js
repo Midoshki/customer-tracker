@@ -15,7 +15,15 @@ class CustomerService {
           .insert(customerData)
           .select();
         
-        if (error) throw error;
+        if (error) {
+          console.error('Database error:', error);
+          throw new Error(`Database error: ${error.message}. Customer was saved locally and will sync when the issue is resolved.`);
+        }
+        
+        // Verify the data was actually returned
+        if (!data || data.length === 0) {
+          throw new Error('Database error: No data returned after insert. Customer was saved locally and will sync when the issue is resolved.');
+        }
         
         // Attach creator name for local display
         const customerWithName = { 
@@ -27,13 +35,15 @@ class CustomerService {
         localCustomers.unshift(customerWithName);
         this.offlineManager.storeLocally('customers', localCustomers);
         
-        return customerWithName;
+        return { success: true, data: customerWithName };
       } catch (error) {
-        // Fallback to offline mode
-        return this.createCustomerOffline(customerData, creatorName);
+        // Store offline and throw error with details
+        const offlineCustomer = this.createCustomerOffline(customerData, creatorName);
+        throw new Error(error.message || 'Database connection failed. Customer was saved locally and will sync when online.');
       }
     } else {
-      return this.createCustomerOffline(customerData, creatorName);
+      const offlineCustomer = this.createCustomerOffline(customerData, creatorName);
+      return { success: false, data: offlineCustomer, offline: true };
     }
   }
 
@@ -71,7 +81,15 @@ class CustomerService {
           .eq('id', customerId)
           .select();
         
-        if (error) throw error;
+        if (error) {
+          console.error('Database error:', error);
+          throw new Error(`Database error: ${error.message}. Customer was updated locally and will sync when the issue is resolved.`);
+        }
+        
+        // Verify the data was actually returned
+        if (!data || data.length === 0) {
+          throw new Error('Database error: No data returned after update. Customer was updated locally and will sync when the issue is resolved.');
+        }
         
         // Attach creator name for local display
         const customerWithName = { 
@@ -86,13 +104,15 @@ class CustomerService {
           this.offlineManager.storeLocally('customers', localCustomers);
         }
         
-        return customerWithName;
+        return { success: true, data: customerWithName };
       } catch (error) {
-        // Fallback to offline mode
-        return this.updateCustomerOffline(customerId, customerData, creatorName);
+        // Store offline and throw error with details
+        const offlineCustomer = this.updateCustomerOffline(customerId, customerData, creatorName);
+        throw new Error(error.message || 'Database connection failed. Customer was updated locally and will sync when online.');
       }
     } else {
-      return this.updateCustomerOffline(customerId, customerData, creatorName);
+      const offlineCustomer = this.updateCustomerOffline(customerId, customerData, creatorName);
+      return { success: false, data: offlineCustomer, offline: true };
     }
   }
 

@@ -766,22 +766,42 @@ function App() {
       // Get the user's name from user object or authData
       const creatorName = user?.user_metadata?.name || user?.name || authData.name || 'Unknown';
       let result;
-      if (editingCustomer) {
-        result = await customerService.updateCustomer(editingCustomer.id, customerData, isOnline, creatorName);
-      } else {
-        result = await customerService.createCustomer(customerData, isOnline, creatorName);
-      }
-
-      resetForm();
-      setCurrentView('list');
-      setShowProfileMenu(false);
-      await refreshCustomers();
       
-      const message = editingCustomer ? 'Customer updated successfully!' : 'Customer added successfully!';
-      if (!isOnline) {
-        showNotification(message + ' (Will sync when online)', 'success');
-      } else {
-        showNotification(message, 'success');
+      try {
+        if (editingCustomer) {
+          result = await customerService.updateCustomer(editingCustomer.id, customerData, isOnline, creatorName);
+        } else {
+          result = await customerService.createCustomer(customerData, isOnline, creatorName);
+        }
+
+        resetForm();
+        setCurrentView('list');
+        setShowProfileMenu(false);
+        await refreshCustomers();
+        
+        const action = editingCustomer ? 'updated' : 'added';
+        
+        if (result.success) {
+          // Successfully saved to database
+          showNotification(`Customer ${action} successfully and saved to database!`, 'success');
+        } else if (result.offline) {
+          // Offline mode
+          showNotification(`Customer ${action} locally. Will sync to database when online.`, 'warning');
+        } else {
+          // Unknown result format
+          showNotification(`Customer ${action} successfully!`, 'success');
+        }
+        
+      } catch (dbError) {
+        // Database error occurred but customer was saved locally
+        console.error('Database operation failed:', dbError);
+        
+        resetForm();
+        setCurrentView('list');
+        setShowProfileMenu(false);
+        await refreshCustomers();
+        
+        showNotification(dbError.message, 'error');
       }
     } catch (error) {
       console.error('Error saving customer:', error);
@@ -2447,14 +2467,16 @@ function App() {
                         
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
-                            <button
-                              onClick={() => {
-                                window.location.href = `tel:${customer.phone}`;
-                              }}
-                              style={styles.primaryButton}
-                            >
-                              📞 Call
-                            </button>
+                            {isMobile && (
+                              <button
+                                onClick={() => {
+                                  window.location.href = `tel:${customer.phone}`;
+                                }}
+                                style={styles.primaryButton}
+                              >
+                                📞 Call
+                              </button>
+                            )}
                             {canEdit && (
                               <>
                                 <button
@@ -2868,8 +2890,8 @@ function App() {
                       <input
                         type="text"
                         style={styles.input}
-                        value={formData.contact_name}
-                        onChange={(e) => setFormData({...formData, contact_name: e.target.value})}
+                                                 value={formData.contact_name}
+                         onChange={(e) => setFormData({...formData, contact_name: e.target.value})}
                         placeholder="Enter contact person name"
                       />
                     </div>
