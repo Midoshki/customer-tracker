@@ -2308,16 +2308,7 @@ function App() {
                                 style={styles.actionsButton}
                               >
                                 ⋯ Actions
-                                                            </button>
-                            </div>
-                          </div>
-                          
-                          {/* Notes */}
-                          {customer.notes && (
-                            <div style={{ marginBottom: '0.5rem', color: '#fbbf24', fontSize: '0.85em' }}>
-                              📝 {customer.notes}
-                            </div>
-                          )}
+                              </button>
                               
                               {showActionsMenu[customer.id] && (
                                 <div style={styles.actionsDropdown}>
@@ -2403,6 +2394,13 @@ function App() {
                               )}
                             </div>
                           </div>
+                          
+                          {/* Notes */}
+                          {customer.notes && (
+                            <div style={{ marginBottom: '0.5rem', color: '#fbbf24', fontSize: '0.85em' }}>
+                              📝 {customer.notes}
+                            </div>
+                          )}
                         </div>
                       );
                     }
