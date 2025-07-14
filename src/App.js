@@ -178,9 +178,12 @@ function App() {
 
   // Helper: get creator name from customer object
   const getCreatorName = (customer) => {
-    return customer.user_profiles?.name || 
-           (customer.user_profiles && customer.user_profiles[0]?.name) || 
-           'Unknown';
+    // Check for array format first (from Supabase query)
+    if (customer.user_profiles && Array.isArray(customer.user_profiles) && customer.user_profiles.length > 0) {
+      return customer.user_profiles[0]?.name || 'Unknown';
+    }
+    // Fallback to direct object format (might be in older cached data)
+    return customer.user_profiles?.name || 'Unknown';
   };
 
   // Helper: get unique creators for filter dropdown

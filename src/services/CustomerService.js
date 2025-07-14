@@ -18,7 +18,10 @@ class CustomerService {
         if (error) throw error;
         
         // Attach creator name for local display
-        const customerWithName = { ...data[0], user_profiles: { name: creatorName } };
+        const customerWithName = { 
+          ...data[0], 
+          user_profiles: [{ name: creatorName }]  // Match the array format for consistency
+        };
         // Update local storage
         const localCustomers = this.offlineManager.getLocal('customers') || [];
         localCustomers.unshift(customerWithName);
@@ -36,7 +39,12 @@ class CustomerService {
 
   createCustomerOffline(customerData, creatorName) {
     const tempId = `temp_${Date.now()}`;
-    const customer = { ...customerData, id: tempId, created_at: new Date().toISOString(), user_profiles: { name: creatorName } };
+    const customer = { 
+      ...customerData, 
+      id: tempId, 
+      created_at: new Date().toISOString(), 
+      user_profiles: [{ name: creatorName }]  // Match the array format from Supabase
+    };
     
     // Store locally
     const localCustomers = this.offlineManager.getLocal('customers') || [];
@@ -66,7 +74,10 @@ class CustomerService {
         if (error) throw error;
         
         // Attach creator name for local display
-        const customerWithName = { ...data[0], user_profiles: { name: creatorName } };
+        const customerWithName = { 
+          ...data[0], 
+          user_profiles: [{ name: creatorName }]  // Match the array format for consistency
+        };
         // Update local storage
         const localCustomers = this.offlineManager.getLocal('customers') || [];
         const index = localCustomers.findIndex(c => c.id === customerId);
@@ -90,7 +101,11 @@ class CustomerService {
     const localCustomers = this.offlineManager.getLocal('customers') || [];
     const index = localCustomers.findIndex(c => c.id === customerId);
     if (index !== -1) {
-      localCustomers[index] = { ...localCustomers[index], ...customerData, user_profiles: { name: creatorName } };
+      localCustomers[index] = { 
+        ...localCustomers[index], 
+        ...customerData, 
+        user_profiles: [{ name: creatorName }]  // Match the array format from Supabase
+      };
       this.offlineManager.storeLocally('customers', localCustomers);
     }
     
@@ -149,14 +164,22 @@ class CustomerService {
   async fetchCustomers(isOnline, userId, isAdmin) {
     if (isOnline) {
       try {
-        // Always fetch all customers, and join user_profiles for creator name
-        let query = this.supabase.from('customers').select('*, user_profiles!customers_created_by_fkey(name)');
-        const { data, error } = await query.order('created_at', { ascending: false });
+        // The foreign key links customers.created_by to auth.users(id), and user_profiles.id to auth.users(id)
+        // We need to join through the created_by field to get the creator's name
+        const { data, error } = await this.supabase
+          .from('customers')
+          .select(`
+            *,
+            user_profiles:created_by(name)
+          `)
+          .order('created_at', { ascending: false });
+        
         if (error) throw error;
         // Update local storage
         this.offlineManager.storeLocally('customers', data || []);
         return data || [];
       } catch (error) {
+        console.error('Error fetching customers:', error);
         // Fallback to local data
         return this.offlineManager.getLocal('customers') || [];
       }
