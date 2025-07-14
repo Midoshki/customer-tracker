@@ -14,6 +14,7 @@ const useCustomers = (user) => {
   }
 
   const refreshCustomers = useCallback(async () => {
+    // Everyone can view customers, but you need to be authenticated to perform actions
     if (!user) {
       setCustomers([]);
       setLoading(false);

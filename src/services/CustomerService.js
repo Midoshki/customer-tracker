@@ -28,10 +28,15 @@ class CustomerService {
         
         if (!profileError && profile) {
           data.user_profiles = profile;
+        } else {
+          // If no profile found, set a placeholder to avoid "Unknown"
+          data.user_profiles = { id: data.created_by, name: 'User' };
+          console.error('User profile not found for user:', data.created_by);
         }
       } catch (profileError) {
-        console.warn('Could not fetch user profile:', profileError);
-        // Don't fail the customer creation if profile fetch fails
+        console.error('Could not fetch user profile:', profileError);
+        // Set placeholder to avoid "Unknown"
+        data.user_profiles = { id: data.created_by, name: 'User' };
       }
     }
     
@@ -63,10 +68,15 @@ class CustomerService {
         
         if (!profileError && profile) {
           data.user_profiles = profile;
+        } else {
+          // If no profile found, set a placeholder to avoid "Unknown"
+          data.user_profiles = { id: data.created_by, name: 'User' };
+          console.error('User profile not found for user:', data.created_by);
         }
       } catch (profileError) {
-        console.warn('Could not fetch user profile:', profileError);
-        // Don't fail the customer update if profile fetch fails
+        console.error('Could not fetch user profile:', profileError);
+        // Set placeholder to avoid "Unknown"
+        data.user_profiles = { id: data.created_by, name: 'User' };
       }
     }
     
@@ -124,11 +134,16 @@ class CustomerService {
           customers.forEach(customer => {
             if (customer.created_by && profileMap[customer.created_by]) {
               customer.user_profiles = profileMap[customer.created_by];
+            } else if (customer.created_by) {
+              // If no profile found, set a placeholder to avoid "Unknown"
+              customer.user_profiles = { id: customer.created_by, name: 'User' };
             }
           });
+        } else {
+          console.error('Error fetching user profiles:', profileError);
         }
       } catch (profileError) {
-        console.warn('Could not fetch user profiles:', profileError);
+        console.error('Could not fetch user profiles:', profileError);
         // Don't fail the customer fetch if profile fetch fails
       }
     }
