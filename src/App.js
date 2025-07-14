@@ -1000,16 +1000,26 @@ function App() {
     setLoading(true);
     let coords = null;
     let input = search.trim();
+    let placeName = '';
     if (input.includes('maps.app.goo.gl')) {
       try {
         const expanded = await expandShortLink(input);
         coords = parseGoogleMapsLink(expanded);
+        if (!coords) {
+          // Try to extract place name from expanded link
+          const match = expanded.match(/\/place\/([^/]+)/);
+          if (match) {
+            placeName = decodeURIComponent(match[1].replace(/\+/g, ' '));
+          }
+        }
       } catch {}
     } else {
       coords = parseGoogleMapsLink(input);
     }
     if (!coords) {
-      coords = await geocodeAddress(input);
+      // If we have a place name, use it; otherwise, use the input
+      const query = placeName || input;
+      coords = await geocodeAddress(query);
     }
     if (coords) {
       setCenter(coords);
@@ -1976,7 +1986,7 @@ function App() {
               </div>
               
               <div style={styles.formGroup}>
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', alignItems: 'center', position: 'relative' }}>
                   <input
                     type="text"
                     placeholder="Search address or paste Google Maps link..."
@@ -2006,20 +2016,39 @@ function App() {
                   >
                     {addMapSearchLoading ? 'Searching...' : 'Go'}
                   </button>
+                  {showAddMapSuggestions && addMapSuggestions.length > 0 && (
+                    <div style={{ position: 'absolute', top: '100%', left: 0, background: '#232323', zIndex: 1002, width: '100%', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.2)', pointerEvents: 'auto' }}>
+                      {addMapSuggestions.map((s, i) => (
+                        <div
+                          key={i}
+                          style={{ padding: '0.75rem', cursor: 'pointer', color: '#e2e8f0', borderBottom: i < addMapSuggestions.length-1 ? '1px solid #3a3a3a' : 'none' }}
+                          onMouseDown={() => {
+                            setTempMarker({ lat: s.lat, lng: s.lng });
+                            setAddMapSearch(s.display);
+                            setShowAddMapSuggestions(false);
+                          }}
+                        >
+                          {s.display}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div style={styles.mapContainer}>
                   <MapContainer
-                    center={tempMarker ? [tempMarker.lat, tempMarker.lng] : 
-                           currentLocation ? [currentLocation.lat, currentLocation.lng] : 
-                           [30.0444, 31.2357]}
+                    center={tempMarker ? [tempMarker.lat, tempMarker.lng] : currentLocation ? [currentLocation.lat, currentLocation.lng] : [30.0444, 31.2357]}
                     zoom={tempMarker ? 15 : currentLocation ? 12 : 8}
                     style={{ height: '100%', width: '100%' }}
+                    whenCreated={map => {
+                      map.on('click', e => {
+                        setTempMarker({ lat: e.latlng.lat, lng: e.latlng.lng });
+                      });
+                    }}
                   >
                     <TileLayer
                       attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                       url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     />
-                    
                     {currentLocation && (
                       <Marker
                         position={[currentLocation.lat, currentLocation.lng]}
@@ -2042,7 +2071,6 @@ function App() {
                         </Popup>
                       </Marker>
                     )}
-                    
                     {customers
                       .filter(c => !editingCustomer || c.id !== editingCustomer.id)
                       .map(customer => (
@@ -2063,8 +2091,16 @@ function App() {
                           </Popup>
                         </Marker>
                       ))}
-                    
-                    <MapClickHandler onMapClick={handleMapClick} tempMarker={tempMarker} />
+                    {tempMarker && (
+                      <Marker position={[tempMarker.lat, tempMarker.lng]} icon={filterCenterIcon}>
+                        <Popup>
+                          <div style={{ textAlign: 'center' }}>
+                            <b>Selected Location</b><br/>
+                            {tempMarker.lat.toFixed(6)}, {tempMarker.lng.toFixed(6)}
+                          </div>
+                        </Popup>
+                      </Marker>
+                    )}
                   </MapContainer>
                 </div>
                 {tempMarker && (
@@ -2169,23 +2205,6 @@ function App() {
               </button>
             )}
           </div>
-        </div>
-      )}
-      {showAddMapSuggestions && addMapSuggestions.length > 0 && (
-        <div style={{ position: 'absolute', background: '#232323', zIndex: 1002, width: '100%', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
-          {addMapSuggestions.map((s, i) => (
-            <div
-              key={i}
-              style={{ padding: '0.75rem', cursor: 'pointer', color: '#e2e8f0', borderBottom: i < addMapSuggestions.length-1 ? '1px solid #3a3a3a' : 'none' }}
-              onMouseDown={() => {
-                setTempMarker({ lat: s.lat, lng: s.lng });
-                setAddMapSearch(s.display);
-                setShowAddMapSuggestions(false);
-              }}
-            >
-              {s.display}
-            </div>
-          ))}
         </div>
       )}
     </div>
