@@ -451,6 +451,14 @@ function App() {
       if (Object.keys(showActionsMenu).length > 0 && !event.target.closest('.actions-container')) {
         setShowActionsMenu({});
       }
+      // Close map suggestions when clicking outside
+      if (showMapSuggestions && !event.target.closest('.map-search-container')) {
+        setShowMapSuggestions(false);
+      }
+      // Close add map suggestions when clicking outside
+      if (showAddMapSuggestions && !event.target.closest('.add-map-search-container')) {
+        setShowAddMapSuggestions(false);
+      }
     };
     
     document.addEventListener('mousedown', handleClickOutside);
@@ -465,11 +473,11 @@ function App() {
       }
     });
 
-    return () => {
-      subscription.unsubscribe();
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-      }, [showProfileMenu, showActionsMenu]);
+          return () => {
+        subscription.unsubscribe();
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+        }, [showProfileMenu, showActionsMenu, showMapSuggestions, showAddMapSuggestions]);
 
   const checkUser = async () => {
     try {
@@ -1124,13 +1132,57 @@ function App() {
   // Helper: expand Google Maps short links
   async function expandShortLink(url) {
     try {
-      // Use a CORS proxy for the HEAD request if needed in production
-      const response = await fetch(url, { 
-        method: 'HEAD', 
-        redirect: 'follow',
-        mode: 'no-cors' // This helps with CORS issues in development
-      });
-      return response.url || url;
+      console.log("Attempting to expand short link:", url);
+      
+      // Clean the URL - remove @ prefix if present
+      let cleanUrl = url.startsWith('@') ? url.substring(1) : url;
+      
+      // Try multiple CORS proxy services
+      const proxies = [
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(cleanUrl)}`,
+        `https://corsproxy.io/?${encodeURIComponent(cleanUrl)}`,
+        `https://cors-anywhere.herokuapp.com/${cleanUrl}`
+      ];
+      
+      for (const proxyUrl of proxies) {
+        try {
+          console.log("Trying proxy:", proxyUrl);
+          const response = await fetch(proxyUrl, { 
+            method: 'GET',
+            timeout: 10000
+          });
+          
+          if (response.ok) {
+            // Get the final URL after redirects
+            const finalUrl = response.url;
+            console.log("Successfully expanded to:", finalUrl);
+            
+            // If the proxy returns the content, we need to extract the redirect URL from headers or content
+            if (finalUrl.includes('allorigins.win')) {
+              // For allorigins, try to get the redirect URL from response
+              const text = await response.text();
+              const redirectMatch = text.match(/window\.location\.href\s*=\s*["']([^"']+)["']/);
+              if (redirectMatch) {
+                console.log("Found redirect URL in content:", redirectMatch[1]);
+                return redirectMatch[1];
+              }
+            } else if (!finalUrl.includes('corsproxy.io') && !finalUrl.includes('cors-anywhere')) {
+              // Direct redirect worked
+              return finalUrl;
+            }
+            
+            break;
+          }
+        } catch (proxyError) {
+          console.error("Proxy attempt failed:", proxyError);
+          continue;
+        }
+      }
+      
+      // If all proxies fail, try a different approach - use the link as is and let the coordinate extraction handle it
+      console.log("All proxy attempts failed, returning original URL");
+      return cleanUrl;
+      
     } catch (error) {
       console.error("Error expanding short link:", error);
       return url;
@@ -1165,20 +1217,35 @@ function App() {
         showNotification('Processing map link... this may take a moment', 'info');
         console.log("Google Maps link detected");
         
+        // If it's a short link, expand it first
+        let urlToProcess = input;
+        if (input.includes('maps.app.goo.gl') || input.includes('goo.gl/maps')) {
+          console.log("Short link detected, expanding...");
+          try {
+            const expandedUrl = await expandShortLink(input);
+            if (expandedUrl && expandedUrl !== input) {
+              urlToProcess = expandedUrl;
+              console.log("Expanded URL:", urlToProcess);
+            }
+          } catch (error) {
+            console.error("Failed to expand short link:", error);
+          }
+        }
+        
         // Try our direct extraction method first
-        coords = await extractCoordinatesFromGoogleMapsLink(input);
+        coords = await extractCoordinatesFromGoogleMapsLink(urlToProcess);
         
         // If direct extraction fails, fall back to other methods
         if (!coords) {
           console.log("Direct extraction failed, trying Nominatim");
-          coords = await getPlaceDetails(input);
+          coords = await getPlaceDetails(urlToProcess);
           
           // If all automatic methods fail, offer manual approach
           if (!coords) {
             console.log("All automatic methods failed, offering manual option");
             
             // Extract any place name we can find
-            const placeName = extractPlaceNameFromUrl(input);
+            const placeName = extractPlaceNameFromUrl(urlToProcess);
             
             if (placeName) {
               // Create a user-friendly message
@@ -1244,10 +1311,11 @@ function App() {
     }
   }
 
-  // Fetch suggestions from Nominatim
+  // Fetch suggestions from Nominatim (Egypt only)
   async function fetchSuggestions(query) {
     if (!query) return [];
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5`;
+    // Limit search to Egypt using countrycodes parameter
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5&countrycodes=eg`;
     const res = await axios.get(url);
     return res.data.map(item => ({
       display: item.display_name,
@@ -2201,14 +2269,19 @@ function App() {
                 📍 Get My Location
               </button>
             </div>
-            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', alignItems: 'center', position: 'relative' }} className="map-search-container">
               <input
                 type="text"
                 placeholder="Search address or paste Google Maps link..."
                 value={mapSearch}
                 onChange={async e => {
                   setMapSearch(e.target.value);
-                  if (e.target.value && !e.target.value.includes('maps.app.goo.gl') && !e.target.value.includes('goo.gl/maps')) {
+                  // Only fetch suggestions if it's not a Google Maps link
+                  if (e.target.value && 
+                      !e.target.value.includes('maps.google.') && 
+                      !e.target.value.includes('google.com/maps') && 
+                      !e.target.value.includes('goo.gl/maps') && 
+                      !e.target.value.includes('maps.app.goo.gl')) {
                     const suggestions = await fetchSuggestions(e.target.value);
                     setMapSuggestions(suggestions);
                     setShowMapSuggestions(true);
@@ -2219,7 +2292,6 @@ function App() {
                 }}
                 style={{ ...styles.input, flex: 1 }}
                 onFocus={() => setShowMapSuggestions(mapSuggestions.length > 0)}
-                onBlur={() => setTimeout(() => setShowMapSuggestions(false), 200)}
               />
               <button
                 style={styles.secondaryButton}
@@ -2230,24 +2302,24 @@ function App() {
               >
                 {mapSearchLoading ? 'Searching...' : 'Go'}
               </button>
+              {showMapSuggestions && mapSuggestions.length > 0 && (
+                <div style={{ position: 'absolute', top: '100%', left: 0, background: '#232323', zIndex: 1002, width: '100%', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
+                  {mapSuggestions.map((s, i) => (
+                    <div
+                      key={i}
+                      style={{ padding: '0.75rem', cursor: 'pointer', color: '#e2e8f0', borderBottom: i < mapSuggestions.length-1 ? '1px solid #3a3a3a' : 'none' }}
+                      onMouseDown={() => {
+                        setFilterCenter({ lat: s.lat, lng: s.lng });
+                        setMapSearch(s.display);
+                        setShowMapSuggestions(false);
+                      }}
+                    >
+                      {s.display}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            {showMapSuggestions && mapSuggestions.length > 0 && (
-              <div style={{ position: 'absolute', background: '#232323', zIndex: 1002, width: '100%', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
-                {mapSuggestions.map((s, i) => (
-                  <div
-                    key={i}
-                    style={{ padding: '0.75rem', cursor: 'pointer', color: '#e2e8f0', borderBottom: i < mapSuggestions.length-1 ? '1px solid #3a3a3a' : 'none' }}
-                    onMouseDown={() => {
-                      setFilterCenter({ lat: s.lat, lng: s.lng });
-                      setMapSearch(s.display);
-                      setShowMapSuggestions(false);
-                    }}
-                  >
-                    {s.display}
-                  </div>
-                ))}
-              </div>
-            )}
             <div style={{ height: '70vh', borderRadius: '0.5rem', overflow: 'hidden', border: '1px solid #475569', position: 'relative', zIndex: 1 }}>
               <MapContainer
                 className="custom-leaflet-map"
@@ -2443,14 +2515,19 @@ function App() {
                   </div>
                 </div>
                 
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', alignItems: 'center', position: 'relative' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', alignItems: 'center', position: 'relative' }} className="add-map-search-container">
                   <input
                     type="text"
                     placeholder="Search address or paste Google Maps link..."
                     value={addMapSearch}
                     onChange={async e => {
                       setAddMapSearch(e.target.value);
-                      if (e.target.value && !e.target.value.includes('maps.app.goo.gl') && !e.target.value.includes('goo.gl/maps')) {
+                      // Only fetch suggestions if it's not a Google Maps link
+                      if (e.target.value && 
+                          !e.target.value.includes('maps.google.') && 
+                          !e.target.value.includes('google.com/maps') && 
+                          !e.target.value.includes('goo.gl/maps') && 
+                          !e.target.value.includes('maps.app.goo.gl')) {
                         const suggestions = await fetchSuggestions(e.target.value);
                         setAddMapSuggestions(suggestions);
                         setShowAddMapSuggestions(true);
@@ -2461,7 +2538,6 @@ function App() {
                     }}
                     style={{ ...styles.input, flex: 1 }}
                     onFocus={() => setShowAddMapSuggestions(addMapSuggestions.length > 0)}
-                    onBlur={() => setTimeout(() => setShowAddMapSuggestions(false), 200)}
                   />
                   <button
                     type="button"
