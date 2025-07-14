@@ -248,7 +248,9 @@ function App() {
     status: 'lead',
     notes: '',
     province: '',
-    area: ''
+    area: '',
+    type: 'أخرى',
+    contact_name: ''
   });
 
   // Add filter state
@@ -260,6 +262,7 @@ function App() {
   const [filterCenter, setFilterCenter] = useState(null); // { lat, lng }
   const [filterProvince, setFilterProvince] = useState('');
   const [filterArea, setFilterArea] = useState('');
+  const [filterType, setFilterType] = useState('');
 
   // Map search state
   const [mapSearch, setMapSearch] = useState('');
@@ -756,6 +759,8 @@ function App() {
         notes: formData.notes,
         province: formData.province,
         area: formData.area,
+        type: formData.type,
+        contact_name: formData.contact_name || null,
         created_by: user.id
       };
       // Get the user's name from user object or authData
@@ -799,7 +804,9 @@ function App() {
       status: customer.status,
       notes: customer.notes || '',
       province: customer.province || '',
-      area: customer.area || ''
+      area: customer.area || '',
+      type: customer.type || 'أخرى',
+      contact_name: customer.contact_name || ''
     });
     setTempMarker({ lat: customer.latitude, lng: customer.longitude });
     setCurrentView('add');
@@ -840,7 +847,7 @@ function App() {
   };
 
   const resetForm = () => {
-    setFormData({ name: '', email: '', phone: '', address: '', status: 'lead', notes: '', province: '', area: '' });
+    setFormData({ name: '', email: '', phone: '', address: '', status: 'lead', notes: '', province: '', area: '', type: 'أخرى', contact_name: '' });
     setTempMarker(null);
     setEditingCustomer(null);
   };
@@ -861,6 +868,8 @@ function App() {
       fuzzySearch(searchTerm, customer.address) ||
       fuzzySearch(searchTerm, customer.province || '') ||
       fuzzySearch(searchTerm, customer.area || '') ||
+      fuzzySearch(searchTerm, customer.type || '') ||
+      fuzzySearch(searchTerm, customer.contact_name || '') ||
       customer.status.toLowerCase().includes(searchTerm.toLowerCase()) ||
       fuzzySearch(searchTerm, customer.notes || '')
     )) return false;
@@ -875,6 +884,8 @@ function App() {
     if (filterProvince && customer.province !== filterProvince) return false;
     // Area filter
     if (filterArea && customer.area !== filterArea) return false;
+    // Type filter
+    if (filterType && customer.type !== filterType) return false;
     // Map radius filter
     if (filterRadius && filterCenter && customer.latitude && customer.longitude) {
       const dist = getDistanceKm(
@@ -2106,6 +2117,16 @@ function App() {
               <option value='customer'>Customer</option>
               <option value='inactive'>Inactive</option>
             </select>
+            <select value={filterType} onChange={e => setFilterType(e.target.value)} style={styles.input}>
+              <option value=''>All Types</option>
+              <option value='أخرى'>أخرى</option>
+              <option value='خضار وفواكه'>خضار وفواكه</option>
+              <option value='سوبرماركت'>سوبرماركت</option>
+              <option value='محل عصير'>محل عصير</option>
+              <option value='فندق'>فندق</option>
+              <option value='نادي'>نادي</option>
+              <option value='مقهى'>مقهى</option>
+            </select>
             <select value={filterCreatedBy} onChange={e => setFilterCreatedBy(e.target.value)} style={styles.input}>
               <option value=''>All Creators</option>
               {uniqueCreators.map(name => (
@@ -2183,10 +2204,10 @@ function App() {
                 <div style={{ ...styles.card, textAlign: 'center', padding: '3rem' }}>
                   <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>👥</div>
                   <h3 style={{ fontSize: '1.25rem', color: '#94a3b8', margin: 0 }}>
-                    {searchTerm || filterStatus || filterCreatedBy || filterDateFrom || filterDateTo || filterRadius ? 'No customers found matching your search' : 'No customers yet'}
+                    {searchTerm || filterStatus || filterType || filterCreatedBy || filterDateFrom || filterDateTo || filterRadius ? 'No customers found matching your search' : 'No customers yet'}
                   </h3>
                   <p style={{ color: '#64748b', marginTop: '0.5rem' }}>
-                    {searchTerm || filterStatus || filterCreatedBy || filterDateFrom || filterDateTo || filterRadius ? 'Try adjusting your search terms' : 'Add your first customer to get started'}
+                                          {searchTerm || filterStatus || filterType || filterCreatedBy || filterDateFrom || filterDateTo || filterRadius ? 'Try adjusting your search terms' : 'Add your first customer to get started'}
                   </p>
                 </div>
               ) : (
@@ -2402,6 +2423,12 @@ function App() {
                         <div style={{ marginBottom: '1rem', color: '#94a3b8', fontSize: '0.875rem' }}>
                           <div style={{ marginBottom: '0.25rem' }}>📧 {customer.email || 'No email'}</div>
                           <div style={{ marginBottom: '0.25rem' }}>📞 {customer.phone}</div>
+                          {customer.contact_name && (
+                            <div style={{ marginBottom: '0.25rem' }}>👤 {customer.contact_name}</div>
+                          )}
+                          <div style={{ marginBottom: '0.25rem', color: '#e67e22' }}>
+                            🏪 {customer.type || 'أخرى'}
+                          </div>
                           {customer.province && (
                             <div style={{ marginBottom: '0.25rem', color: '#e67e22' }}>
                               🏛️ {customer.province}{customer.area && ` - ${customer.area}`}
@@ -2420,6 +2447,14 @@ function App() {
                         
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+                            <button
+                              onClick={() => {
+                                window.location.href = `tel:${customer.phone}`;
+                              }}
+                              style={styles.primaryButton}
+                            >
+                              📞 Call
+                            </button>
                             {canEdit && (
                               <>
                                 <button
@@ -2577,6 +2612,10 @@ function App() {
                           </h4>
                           <div style={{ marginBottom: '10px', fontSize: '0.875rem', color: '#94a3b8' }}>
                             <div>📞 {customer.phone}</div>
+                            {customer.contact_name && (
+                              <div>👤 {customer.contact_name}</div>
+                            )}
+                            <div style={{ color: '#e67e22' }}>🏪 {customer.type || 'أخرى'}</div>
                             {customer.province && (
                               <div style={{ color: '#e67e22' }}>
                                 🏛️ {customer.province}{customer.area && ` - ${customer.area}`}
@@ -2713,6 +2752,35 @@ function App() {
                   </div>
                   
                   <div style={styles.formGroup}>
+                    <label style={styles.label}>Type *</label>
+                    <select
+                      style={styles.select}
+                      value={formData.type}
+                      onChange={(e) => setFormData({...formData, type: e.target.value})}
+                      required
+                    >
+                      <option value="أخرى">أخرى</option>
+                      <option value="خضار وفواكه">خضار وفواكه</option>
+                      <option value="سوبرماركت">سوبرماركت</option>
+                      <option value="محل عصير">محل عصير</option>
+                      <option value="فندق">فندق</option>
+                      <option value="نادي">نادي</option>
+                      <option value="مقهى">مقهى</option>
+                    </select>
+                  </div>
+                  
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Contact Name</label>
+                    <input
+                      type="text"
+                      style={styles.input}
+                      value={formData.contact_name}
+                      onChange={(e) => setFormData({...formData, contact_name: e.target.value})}
+                      placeholder="Enter contact person name"
+                    />
+                  </div>
+                  
+                  <div style={styles.formGroup}>
                     <label style={styles.label}>Notes</label>
                     <textarea
                       style={{ ...styles.input, minHeight: '60px', resize: 'vertical' }}
@@ -2775,6 +2843,35 @@ function App() {
                         <option value="customer">Customer</option>
                         <option value="inactive">Inactive</option>
                       </select>
+                    </div>
+                    
+                    <div style={styles.formGroup}>
+                      <label style={styles.label}>Type *</label>
+                      <select
+                        style={styles.select}
+                        value={formData.type}
+                        onChange={(e) => setFormData({...formData, type: e.target.value})}
+                        required
+                      >
+                        <option value="أخرى">أخرى</option>
+                        <option value="خضار وفواكه">خضار وفواكه</option>
+                        <option value="سوبرماركت">سوبرماركت</option>
+                        <option value="محل عصير">محل عصير</option>
+                        <option value="فندق">فندق</option>
+                        <option value="نادي">نادي</option>
+                        <option value="مقهى">مقهى</option>
+                      </select>
+                    </div>
+                    
+                    <div style={styles.formGroup}>
+                      <label style={styles.label}>Contact Name</label>
+                      <input
+                        type="text"
+                        style={styles.input}
+                        value={formData.contact_name}
+                        onChange={(e) => setFormData({...formData, contact_name: e.target.value})}
+                        placeholder="Enter contact person name"
+                      />
                     </div>
                   </div>
                   
