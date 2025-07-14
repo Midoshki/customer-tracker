@@ -205,6 +205,7 @@ function MapClickHandler({ onMapClick, tempMarker }) {
 function App() {
   // Authentication state
   const [user, setUser] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [authMode, setAuthMode] = useState('login');
   const [authData, setAuthData] = useState({ email: '', password: '', name: '' });
@@ -600,6 +601,7 @@ function App() {
         checkIfAdmin(session.user.id);
       } else {
         setUser(null);
+        setUserProfile(null);
         setIsAdmin(false);
       }
     });
@@ -640,6 +642,7 @@ function App() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
+        console.log('Current user from session:', session.user);
         setUser(session.user);
         await checkIfAdmin(session.user.id);
       }
@@ -650,17 +653,58 @@ function App() {
 
   const checkIfAdmin = async (userId) => {
     try {
+      console.log('Fetching user profile for userId:', userId);
       const { data, error } = await supabase
         .from('user_profiles')
-        .select('role')
+        .select('*')
         .eq('id', userId)
         .single();
       
-      if (!error && data?.role === 'admin') {
-        setIsAdmin(true);
+      console.log('User profile query result:', { data, error });
+      
+      if (!error && data) {
+        console.log('Setting user profile:', data);
+        setUserProfile(data);
+        setIsAdmin(data.role === 'admin');
+      } else {
+        console.warn('User profile not found, checking if we need to create one');
+        
+        // If user profile doesn't exist, try to create it
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const userEmail = session.user.email;
+          const userName = session.user.user_metadata?.name || 
+                          session.user.user_metadata?.full_name || 
+                          userEmail.split('@')[0]; // fallback to email prefix
+          
+          console.log('Creating missing user profile for:', { userId, userEmail, userName });
+          
+          const { data: newProfile, error: insertError } = await supabase
+            .from('user_profiles')
+            .insert([{ 
+              id: userId, 
+              name: userName, 
+              email: userEmail, 
+              role: 'user' 
+            }])
+            .select()
+            .single();
+          
+          if (!insertError && newProfile) {
+            console.log('Created new user profile:', newProfile);
+            setUserProfile(newProfile);
+            setIsAdmin(newProfile.role === 'admin');
+          } else {
+            console.error('Failed to create user profile:', insertError);
+            setUserProfile(null);
+          }
+        } else {
+          setUserProfile(null);
+        }
       }
     } catch (error) {
       console.error('Error checking admin status:', error);
+      setUserProfile(null);
     }
   };
 
@@ -703,6 +747,7 @@ function App() {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setUser(null);
+    setUserProfile(null);
     setIsAdmin(false);
     setShowProfileMenu(false);
   };
@@ -768,8 +813,22 @@ function App() {
         contact_name: formData.contact_name || null,
         created_by: user.id
       };
-      // Get the user's name from user object or authData
-      const creatorName = user?.user_metadata?.name || user?.name || authData.name || 'Unknown';
+      // Get the user's name from user profile data with fallback
+      console.log('Current userProfile when creating customer:', userProfile);
+      console.log('Current user when creating customer:', user);
+      
+      let creatorName = 'Unknown';
+      if (userProfile?.name) {
+        creatorName = userProfile.name;
+      } else if (user?.user_metadata?.name) {
+        creatorName = user.user_metadata.name;
+      } else if (user?.user_metadata?.full_name) {
+        creatorName = user.user_metadata.full_name;
+      } else if (user?.email) {
+        creatorName = user.email.split('@')[0];
+      }
+      
+      console.log('Using creator name:', creatorName);
       let result;
       
       try {
