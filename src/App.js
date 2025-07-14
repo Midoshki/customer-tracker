@@ -178,12 +178,22 @@ function App() {
 
   // Helper: get creator name from customer object
   const getCreatorName = (customer) => {
-    // Check for array format first (from Supabase query)
+    // Check if user_profiles is an array (standard Supabase foreign key format)
     if (customer.user_profiles && Array.isArray(customer.user_profiles) && customer.user_profiles.length > 0) {
       return customer.user_profiles[0]?.name || 'Unknown';
     }
-    // Fallback to direct object format (might be in older cached data)
-    return customer.user_profiles?.name || 'Unknown';
+    
+    // Check if user_profiles is a direct object (might be in older or offline data)
+    if (customer.user_profiles && customer.user_profiles.name) {
+      return customer.user_profiles.name;
+    }
+    
+    // If we have a created_by_name field (direct join)
+    if (customer.created_by_name) {
+      return customer.created_by_name;
+    }
+    
+    return 'Unknown';
   };
 
   // Helper: get unique creators for filter dropdown

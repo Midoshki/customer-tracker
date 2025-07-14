@@ -170,7 +170,7 @@ class CustomerService {
           .from('customers')
           .select(`
             *,
-            user_profiles:created_by(name)
+            user_profiles!created_by(name)
           `)
           .order('created_at', { ascending: false });
         
@@ -196,7 +196,10 @@ class CustomerService {
     try {
       const { data, error } = await this.supabase
         .from('customers')
-        .select('*')
+        .select(`
+          *,
+          user_profiles!created_by(name)
+        `)
         .order('created_at', { ascending: false });
       
       if (!error) {
