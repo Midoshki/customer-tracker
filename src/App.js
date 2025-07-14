@@ -8,7 +8,7 @@ import useOfflineCustomers from './hooks/useOfflineCustomers';
 import OfflineIndicator from './components/OfflineIndicator';
 import axios from 'axios';
 
-// Add CSS for Leaflet controls z-index fix
+// Add CSS for Leaflet controls z-index fix and range slider styling
 const leafletControlsStyle = `
   .leaflet-control-container {
     z-index: 100 !important;
@@ -18,6 +18,58 @@ const leafletControlsStyle = `
   }
   .leaflet-control-attribution {
     z-index: 100 !important;
+  }
+  
+  /* Range slider styling */
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+    cursor: pointer;
+  }
+  
+  /* Track */
+  input[type="range"]::-webkit-slider-track {
+    background: #3a3a3a;
+    height: 4px;
+    border-radius: 2px;
+  }
+  
+  input[type="range"]::-moz-range-track {
+    background: #3a3a3a;
+    height: 4px;
+    border-radius: 2px;
+    border: none;
+  }
+  
+  /* Thumb */
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 16px;
+    width: 16px;
+    border-radius: 50%;
+    background: #e67e22;
+    cursor: pointer;
+    margin-top: -6px;
+  }
+  
+  input[type="range"]::-moz-range-thumb {
+    height: 16px;
+    width: 16px;
+    border-radius: 50%;
+    background: #e67e22;
+    cursor: pointer;
+    border: none;
+  }
+  
+  /* Focus styles */
+  input[type="range"]:focus::-webkit-slider-thumb {
+    box-shadow: 0 0 0 3px rgba(230, 126, 34, 0.3);
+  }
+  
+  input[type="range"]:focus::-moz-range-thumb {
+    box-shadow: 0 0 0 3px rgba(230, 126, 34, 0.3);
   }
 `;
 
@@ -173,7 +225,9 @@ function App() {
     latitude: '',
     longitude: '',
     status: 'lead',
-    notes: ''
+    notes: '',
+    province: '',
+    area: ''
   });
 
   // Add filter state
@@ -181,8 +235,10 @@ function App() {
   const [filterCreatedBy, setFilterCreatedBy] = useState('');
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
-  const [filterRadius, setFilterRadius] = useState(''); // in km
+  const [filterRadius, setFilterRadius] = useState(5); // in km, default 5km
   const [filterCenter, setFilterCenter] = useState(null); // { lat, lng }
+  const [filterProvince, setFilterProvince] = useState('');
+  const [filterArea, setFilterArea] = useState('');
 
   // Map search state
   const [mapSearch, setMapSearch] = useState('');
@@ -199,6 +255,42 @@ function App() {
   // Map refs for auto-zoom
   const mapRef = useRef(null);
   const addMapRef = useRef(null);
+
+  // Egyptian Provinces and Areas Data
+  const egyptianProvinces = {
+    'Cairo': ['Cairo', 'Helwan', 'New Cairo', 'Maadi', 'Nasr City', 'Shubra El Kheima', 'Old Cairo', 'Zamalek', 'Downtown Cairo', 'Heliopolis'],
+    'Giza': ['Giza', '6th of October', 'Sheikh Zayed', 'Dokki', 'Agouza', 'Mohandessin', 'Haram', 'Faisal', 'Bulaq al-Dakroor', 'Kit Kat'],
+    'Alexandria': ['Alexandria', 'Borg el Arab', 'Agami', 'Montaza', 'Raml Station', 'Sidi Gaber', 'Sporting', 'Stanley', 'Miami', 'Abu Qir'],
+    'Dakahlia': ['Mansoura', 'Talkha', 'Belqas', 'Sherbin', 'Dekernes', 'Aga', 'Minyat an Nasr', 'Nabaroh', 'Temay al Amdid', 'Mit Ghamr'],
+    'Red Sea': ['Hurghada', 'Safaga', 'Quseer', 'Marsa Alam', 'Berenice', 'Shalatin', 'Ras Banas', 'Abu Ramad', 'Hamata', 'Wadi Gimal'],
+    'Beheira': ['Damanhur', 'Kafr el-Dawar', 'Rashid', 'Edko', 'Abu Hummus', 'Abu el-Matamer', 'Delengat', 'Mahmudiyah', 'Rahmaniyah', 'Kom Hamada'],
+    'Faiyum': ['Faiyum', 'Tamiya', 'Snures', 'Itsa', 'Yusuf al-Sediaq', 'Ibsheway', 'Qasr Qaroun', 'Tunis Village', 'Lake Qaroun', 'Wadi El Rayan'],
+    'Gharbia': ['Tanta', 'El Mahalla El Kubra', 'Kafr el-Zayat', 'Zefta', 'Samannud', 'Qutour', 'Basiyoun', 'Santa', 'Mit Ghamr', 'Kafr Dawud'],
+    'Ismailia': ['Ismailia', 'Fayed', 'Qantara Sharq', 'Qantara Gharb', 'Abu Sultan', 'Kasassin', 'Nefesha', 'Tel el-Kebir', 'Serapeum', 'Timsah Lake'],
+    'Monufia': ['Shibin el-Kom', 'Menouf', 'Sadat City', 'Ashmoun', 'al-Bagour', 'Quesna', 'Berket al-Sabaa', 'Tala', 'al-Shohada', 'Zawyet Razin'],
+    'Minya': ['Minya', 'Maghagha', 'Bani Mazar', 'Mattay', 'Samalut', 'Adora', 'Deir Mawas', 'Malawi', 'Abu Qurqas', 'Tuna el-Gebel'],
+    'Qalyubia': ['Banha', 'Qalyub', 'Shubra el-Kheima', 'Qaha', 'Khosous', 'Kafr Shukr', 'Tukh', 'Khanka', 'Shibin al-Qanater', 'Obour'],
+    'Luxor': ['Luxor', 'Esna', 'Armant', 'Tod', 'al-Bayadiyah', 'al-Qarna', 'al-Zeiniya', 'Karnak', 'West Bank', 'East Bank'],
+    'New Valley': ['Kharga', 'Dakhla', 'Farafra', 'Siwa', 'Baris', 'Balat', 'Mut', 'Paris Oasis', 'al-Kharga', 'Qasr Dakhla'],
+    'Suez': ['Suez', 'Ain Sokhna', 'Faisal', 'Ganayen', 'Arbaeen', 'al-Salam', 'Port Tawfiq', 'Ataqa', 'al-Zafaran', 'al-Adabiya'],
+    'Al Sharqia': ['Zagazig', 'Belbeis', '10th of Ramadan', 'Minya al-Qamh', 'Abu Hammad', 'al-Qurayn', 'Faqous', 'al-Ibrahimiyya', 'Kafr Saqr', 'Awlad Saqr'],
+    'Aswan': ['Aswan', 'Kom Ombo', 'Daraw', 'Nasr al-Nuba', 'Kalabsha', 'Abu Simbel', 'Edfu', 'Elephantine Island', 'Philae', 'High Dam'],
+    'Asyut': ['Asyut', 'Dayrut', 'Qusiya', 'Manfalut', 'Abu Tig', 'Sahel Selim', 'al-Badari', 'Sidfa', 'al-Ghanayim', 'al-Fateh'],
+    'Beni Suef': ['Beni Suef', 'al-Wasta', 'Naser', 'Ihnasya', 'ببا', 'Sumusta al-Waqf', 'al-Fashn', 'Maydum', 'Lahun', 'Herakleopolis'],
+    'Port Said': ['Port Said', 'Port Fouad', 'al-Manakh', 'al-Arab', 'al-Sharq', 'al-Zohur', 'al-Ganoub', 'al-Dawahy', 'Mubarak', 'al-Salam'],
+    'Damietta': ['Damietta', 'New Damietta', 'Ras el-Bar', 'Zarqa', 'Kafr Saad', 'Faraskur', 'al-Sarw', 'Azbet al-Borg', 'Mit Abul Kum', 'Kafr al-Batikh'],
+    'South Sinai': ['Sharm el-Sheikh', 'Dahab', 'Nuweiba', 'Taba', 'Saint Catherine', 'Ras Mohammed', 'Nabq', 'Abu Rudeis', 'el-Tor', 'Ras Sudr'],
+    'Kafr el-Sheikh': ['Kafr el-Sheikh', 'Desouk', 'Fuwwah', 'Metoubes', 'Qilin', 'Sidi Salem', 'Hamul', 'Biyala', 'Riyadh', 'Baltim'],
+    'Matrouh': ['Marsa Matrouh', 'el-Alamein', 'Dabaa', 'Sallum', 'Siwa', 'Burg el-Arab', 'al-Hamam', 'Marina', 'Ras el-Hekma', 'Fouka'],
+    'Qena': ['Qena', 'Nag Hammadi', 'Qus', 'Naqada', 'Farshut', 'Abu Tesht', 'Dishna', 'al-Waqf', 'Dandet', 'Qift'],
+    'North Sinai': ['Arish', 'Sheikh Zuweid', 'Rafah', 'Bir al-Abd', 'Nakhl', 'Hasana', 'Rumana', 'Qantara Sharq', 'Baloza', 'Rabaa'],
+    'Sohag': ['Sohag', 'Akhmim', 'Girga', 'Balyana', 'al-Maraghah', 'al-Monshah', 'Dar al-Salam', 'Juhaynah', 'Sakultah', 'Tahta']
+  };
+
+  // Get available areas for selected province
+  const getAvailableAreas = (province) => {
+    return egyptianProvinces[province] || [];
+  };
 
   // Helper: get creator name from customer object
   const getCreatorName = (customer) => {
@@ -616,6 +708,16 @@ function App() {
       return;
     }
     
+    if (!formData.province.trim()) {
+      showNotification('Province/Governorate is required!', 'warning');
+      return;
+    }
+    
+    if (!formData.area.trim()) {
+      showNotification('Area/District is required!', 'warning');
+      return;
+    }
+    
     if (!tempMarker) {
       showNotification('Please pin the customer location on the map first!', 'warning');
       return;
@@ -631,6 +733,8 @@ function App() {
         longitude: tempMarker.lng,
         status: formData.status,
         notes: formData.notes,
+        province: formData.province,
+        area: formData.area,
         created_by: user.id
       };
       // Get the user's name from user object or authData
@@ -672,7 +776,9 @@ function App() {
       phone: customer.phone,
       address: customer.address,
       status: customer.status,
-      notes: customer.notes || ''
+      notes: customer.notes || '',
+      province: customer.province || '',
+      area: customer.area || ''
     });
     setTempMarker({ lat: customer.latitude, lng: customer.longitude });
     setCurrentView('add');
@@ -713,7 +819,7 @@ function App() {
   };
 
   const resetForm = () => {
-    setFormData({ name: '', email: '', phone: '', address: '', status: 'lead', notes: '' });
+    setFormData({ name: '', email: '', phone: '', address: '', status: 'lead', notes: '', province: '', area: '' });
     setTempMarker(null);
     setEditingCustomer(null);
   };
@@ -732,6 +838,8 @@ function App() {
       fuzzySearch(searchTerm, customer.email || '') ||
       fuzzySearch(searchTerm, customer.phone) ||
       fuzzySearch(searchTerm, customer.address) ||
+      fuzzySearch(searchTerm, customer.province || '') ||
+      fuzzySearch(searchTerm, customer.area || '') ||
       customer.status.toLowerCase().includes(searchTerm.toLowerCase()) ||
       fuzzySearch(searchTerm, customer.notes || '')
     )) return false;
@@ -742,6 +850,10 @@ function App() {
     // Date added filter
     if (filterDateFrom && (!customer.created_at || customer.created_at < filterDateFrom)) return false;
     if (filterDateTo && (!customer.created_at || customer.created_at > (filterDateTo + 'T23:59:59'))) return false;
+    // Province filter
+    if (filterProvince && customer.province !== filterProvince) return false;
+    // Area filter
+    if (filterArea && customer.area !== filterArea) return false;
     // Map radius filter
     if (filterRadius && filterCenter && customer.latitude && customer.longitude) {
       const dist = getDistanceKm(
@@ -1979,16 +2091,43 @@ function App() {
                 <option key={name} value={name}>{name}</option>
               ))}
             </select>
+            <select value={filterProvince} onChange={e => {
+              setFilterProvince(e.target.value);
+              setFilterArea(''); // Reset area when province changes
+            }} style={styles.input}>
+              <option value=''>All Provinces</option>
+              {Object.keys(egyptianProvinces).sort().map(province => (
+                <option key={province} value={province}>{province}</option>
+              ))}
+            </select>
+            <select value={filterArea} onChange={e => setFilterArea(e.target.value)} style={styles.input} disabled={!filterProvince}>
+              <option value=''>All Areas</option>
+              {filterProvince && getAvailableAreas(filterProvince).map(area => (
+                <option key={area} value={area}>{area}</option>
+              ))}
+            </select>
             <input type='date' value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} style={styles.input} placeholder='From date' />
             <input type='date' value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} style={styles.input} placeholder='To date' />
-            <select value={filterRadius} onChange={e => setFilterRadius(e.target.value)} style={styles.input}>
-              <option value=''>Any Distance</option>
-              <option value='1'>Within 1 km</option>
-              <option value='5'>Within 5 km</option>
-              <option value='10'>Within 10 km</option>
-              <option value='25'>Within 25 km</option>
-              <option value='50'>Within 50 km</option>
-            </select>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', minWidth: '200px' }}>
+              <label style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                Radius: {filterRadius}km
+              </label>
+              <input 
+                type='range' 
+                min='1' 
+                max='80' 
+                value={filterRadius} 
+                onChange={e => setFilterRadius(e.target.value)}
+                style={{
+                  width: '100%',
+                  outline: 'none',
+                  opacity: 0.7,
+                  transition: 'opacity 0.2s',
+                }}
+                onMouseOver={e => e.target.style.opacity = 1}
+                onMouseOut={e => e.target.style.opacity = 0.7}
+              />
+            </div>
             <button
               style={styles.secondaryButton}
               onClick={() => {
@@ -2090,6 +2229,7 @@ function App() {
                               <div style={{ fontSize: '0.75rem', color: '#94a3b8', lineHeight: '1.2' }}>
                                 <div>{customer.phone}</div>
                                 {customer.email && <div>{customer.email}</div>}
+                                {customer.province && <div style={{ color: '#e67e22' }}>{customer.province}{customer.area && ` - ${customer.area}`}</div>}
                                 <div style={{ opacity: 0.8 }}>{customer.address}</div>
                               </div>
                               <div style={{ fontSize: '0.75rem', color: '#e67e22', fontWeight: 500, marginBottom: '0.25rem' }}>
@@ -2243,8 +2383,13 @@ function App() {
                         </div>
                         
                         <div style={{ marginBottom: '1rem', color: '#94a3b8', fontSize: '0.875rem' }}>
-                          <div style={{ marginBottom: '0.25rem' }}>📞 {customer.email || 'No email'}</div>
+                          <div style={{ marginBottom: '0.25rem' }}>📧 {customer.email || 'No email'}</div>
                           <div style={{ marginBottom: '0.25rem' }}>📞 {customer.phone}</div>
+                          {customer.province && (
+                            <div style={{ marginBottom: '0.25rem', color: '#e67e22' }}>
+                              🏛️ {customer.province}{customer.area && ` - ${customer.area}`}
+                            </div>
+                          )}
                           <div style={{ marginBottom: '0.25rem' }}>📍 {customer.address}</div>
                           <div style={{ fontSize: '0.75rem', color: '#e67e22', fontWeight: 500, marginBottom: '0.25rem' }}>
                             Added by: {getCreatorName(customer)}
@@ -2415,6 +2560,11 @@ function App() {
                           </h4>
                           <div style={{ marginBottom: '10px', fontSize: '0.875rem', color: '#94a3b8' }}>
                             <div>📞 {customer.phone}</div>
+                            {customer.province && (
+                              <div style={{ color: '#e67e22' }}>
+                                🏛️ {customer.province}{customer.area && ` - ${customer.area}`}
+                              </div>
+                            )}
                             <div>📍 {customer.address}</div>
                             <div>Status: <strong>{customer.status}</strong></div>
                           </div>
@@ -2546,6 +2696,39 @@ function App() {
                   </div>
                   
                   <div style={styles.formGroup}>
+                    <label style={styles.label}>Province/Governorate *</label>
+                    <select
+                      style={styles.select}
+                      value={formData.province}
+                      onChange={(e) => {
+                        setFormData({...formData, province: e.target.value, area: ''});
+                      }}
+                      required
+                    >
+                      <option value="">Select Province/Governorate</option>
+                      {Object.keys(egyptianProvinces).sort().map(province => (
+                        <option key={province} value={province}>{province}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Area/District *</label>
+                    <select
+                      style={styles.select}
+                      value={formData.area}
+                      onChange={(e) => setFormData({...formData, area: e.target.value})}
+                      required
+                      disabled={!formData.province}
+                    >
+                      <option value="">Select Area/District</option>
+                      {formData.province && getAvailableAreas(formData.province).map(area => (
+                        <option key={area} value={area}>{area}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div style={styles.formGroup}>
                     <label style={styles.label}>Notes</label>
                     <textarea
                       style={{ ...styles.input, minHeight: '60px', resize: 'vertical' }}
@@ -2609,6 +2792,39 @@ function App() {
                         <option value="inactive">Inactive</option>
                       </select>
                     </div>
+                    
+                    <div style={styles.formGroup}>
+                      <label style={styles.label}>Province/Governorate *</label>
+                      <select
+                        style={styles.select}
+                        value={formData.province}
+                        onChange={(e) => {
+                          setFormData({...formData, province: e.target.value, area: ''});
+                        }}
+                        required
+                      >
+                        <option value="">Select Province/Governorate</option>
+                        {Object.keys(egyptianProvinces).sort().map(province => (
+                          <option key={province} value={province}>{province}</option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    <div style={styles.formGroup}>
+                      <label style={styles.label}>Area/District *</label>
+                      <select
+                        style={styles.select}
+                        value={formData.area}
+                        onChange={(e) => setFormData({...formData, area: e.target.value})}
+                        required
+                        disabled={!formData.province}
+                      >
+                        <option value="">Select Area/District</option>
+                        {formData.province && getAvailableAreas(formData.province).map(area => (
+                          <option key={area} value={area}>{area}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                   
                   <div style={styles.formGroup}>
@@ -2644,17 +2860,50 @@ function App() {
                   </h3>
                 )}
                 
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>Address *</label>
-                  <input
-                    type="text"
-                    style={styles.input}
-                    value={formData.address}
-                    onChange={(e) => setFormData({...formData, address: e.target.value})}
-                    required
-                    placeholder="Enter full address"
-                  />
-                </div>
+                                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Province/Governorate *</label>
+                    <select
+                      style={styles.select}
+                      value={formData.province}
+                      onChange={(e) => {
+                        setFormData({...formData, province: e.target.value, area: ''});
+                      }}
+                      required
+                    >
+                      <option value="">Select Province/Governorate</option>
+                      {Object.keys(egyptianProvinces).sort().map(province => (
+                        <option key={province} value={province}>{province}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Area/District *</label>
+                    <select
+                      style={styles.select}
+                      value={formData.area}
+                      onChange={(e) => setFormData({...formData, area: e.target.value})}
+                      required
+                      disabled={!formData.province}
+                    >
+                      <option value="">Select Area/District</option>
+                      {formData.province && getAvailableAreas(formData.province).map(area => (
+                        <option key={area} value={area}>{area}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Address *</label>
+                    <input
+                      type="text"
+                      style={styles.input}
+                      value={formData.address}
+                      onChange={(e) => setFormData({...formData, address: e.target.value})}
+                      required
+                      placeholder="Enter full address"
+                    />
+                  </div>
               </div>
               
               <div style={styles.formGroup}>
