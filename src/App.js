@@ -6,6 +6,7 @@ import L from 'leaflet';
 import './App.css';
 import useOfflineCustomers from './hooks/useOfflineCustomers';
 import OfflineIndicator from './components/OfflineIndicator';
+import axios from 'axios';
 
 // Fix default markers
 delete L.Icon.Default.prototype._getIconUrl;
@@ -124,6 +125,8 @@ function App() {
     onCancel: null 
   });
   const [showFilters, setShowFilters] = useState(false);
+  const [headerVisible, setHeaderVisible] = useState(true);
+  const lastScrollY = useRef(window.scrollY);
 
   // Offline customer management
   const { customers, isOnline, customerService, loading, refreshCustomers } = useOfflineCustomers();
@@ -167,6 +170,32 @@ function App() {
     return R * c;
   }
 
+  // Helper: parse Google Maps link for coordinates
+  function parseGoogleMapsLink(link) {
+    try {
+      // Match @lat,lng,zoom or /place/.../lat,lng
+      const atMatch = link.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+      if (atMatch) {
+        return { lat: parseFloat(atMatch[1]), lng: parseFloat(atMatch[2]) };
+      }
+      const coordMatch = link.match(/(-?\d+\.\d+),(-?\d+\.\d+)/);
+      if (coordMatch) {
+        return { lat: parseFloat(coordMatch[1]), lng: parseFloat(coordMatch[2]) };
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  // Helper: geocode address using Nominatim
+  async function geocodeAddress(address) {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`;
+    const res = await axios.get(url);
+    if (res.data && res.data.length > 0) {
+      return { lat: parseFloat(res.data[0].lat), lng: parseFloat(res.data[0].lon) };
+    }
+    return null;
+  }
+
   // Detect mobile screen size
   useEffect(() => {
     const handleResize = () => {
@@ -176,6 +205,21 @@ function App() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  useEffect(() => {
+    if (!isMobile) return;
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      if (currentScrollY > lastScrollY.current && currentScrollY > 60) {
+        setHeaderVisible(false);
+      } else {
+        setHeaderVisible(true);
+      }
+      lastScrollY.current = currentScrollY;
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [isMobile]);
 
   // Get current location ONLY when user explicitly requests it - completely isolated
   const requestUserLocation = () => {
@@ -1035,7 +1079,12 @@ function App() {
   return (
     <div style={styles.container}>
       <OfflineIndicator isOnline={isOnline} />
-      <header style={styles.header}>
+      <header style={{
+        ...styles.header,
+        top: headerVisible ? (isOnline ? 0 : '2rem') : '-80px',
+        transition: 'top 0.3s cubic-bezier(0.4,0,0.2,1)',
+        zIndex: 1000
+      }}>
         <div style={styles.headerContent}>
           <div style={styles.logoContainer}>
             <img 
@@ -1551,8 +1600,38 @@ function App() {
                 📍 Get My Location
               </button>
             </div>
-            <div style={{ height: '70vh', borderRadius: '0.5rem', overflow: 'hidden', border: '1px solid #475569' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', alignItems: 'center' }}>
+              <input
+                type="text"
+                placeholder="Search address or paste Google Maps link..."
+                value={mapSearch}
+                onChange={e => setMapSearch(e.target.value)}
+                style={{ ...styles.input, flex: 1 }}
+              />
+              <button
+                style={styles.secondaryButton}
+                disabled={mapSearchLoading || !mapSearch}
+                onClick={async () => {
+                  setMapSearchLoading(true);
+                  let coords = parseGoogleMapsLink(mapSearch);
+                  if (!coords) {
+                    coords = await geocodeAddress(mapSearch);
+                  }
+                  if (coords) {
+                    setFilterCenter(coords);
+                    setMapSearch('');
+                  } else {
+                    showNotification('Location not found. Try a different address or link.', 'warning');
+                  }
+                  setMapSearchLoading(false);
+                }}
+              >
+                {mapSearchLoading ? 'Searching...' : 'Go'}
+              </button>
+            </div>
+            <div style={{ height: '70vh', borderRadius: '0.5rem', overflow: 'hidden', border: '1px solid #475569', position: 'relative', zIndex: 1 }}>
               <MapContainer
+                className="custom-leaflet-map"
                 center={currentLocation ? [currentLocation.lat, currentLocation.lng] : [30.0444, 31.2357]}
                 zoom={currentLocation ? 12 : 8}
                 style={{ height: '100%', width: '100%' }}

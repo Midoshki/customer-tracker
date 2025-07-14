@@ -402,3 +402,14 @@ select:focus {
   color: #d1d5db !important;
   border: 1px solid rgba(107, 114, 128, 0.3);
 }
+
+.custom-leaflet-map .leaflet-top,
+.custom-leaflet-map .leaflet-bottom,
+.custom-leaflet-map .leaflet-control {
+  z-index: 10 !important;
+}
+
+header,
+[style*='mobileBottomNav'] {
+  z-index: 1000 !important;
+}
