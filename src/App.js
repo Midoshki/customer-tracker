@@ -4,8 +4,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaf
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import './App.css';
-import useOfflineCustomers from './hooks/useOfflineCustomers';
-import OfflineIndicator from './components/OfflineIndicator';
+import useCustomers from './hooks/useCustomers';
 import axios from 'axios';
 
 // Add CSS for Leaflet controls z-index fix and range slider styling
@@ -232,8 +231,8 @@ function App() {
   const [headerVisible, setHeaderVisible] = useState(true);
   const lastScrollY = useRef(window.scrollY);
 
-  // Offline customer management
-  const { customers, isOnline, customerService, loading, refreshCustomers } = useOfflineCustomers(user);
+  // Customer management
+  const { customers, customerService, loading, refreshCustomers } = useCustomers(user);
   
   // Authentication loading state
   const [authLoading, setAuthLoading] = useState(false);
@@ -319,19 +318,9 @@ function App() {
 
   // Helper: get creator name from customer object
   const getCreatorName = (customer) => {
-    // Check if user_profiles is an array (standard Supabase foreign key format)
-    if (customer.user_profiles && Array.isArray(customer.user_profiles) && customer.user_profiles.length > 0) {
-      return customer.user_profiles[0]?.name || 'Unknown';
-    }
-    
-    // Check if user_profiles is a direct object (might be in older or offline data)
+    // With the new join query, user_profiles will be a single object or null
     if (customer.user_profiles && customer.user_profiles.name) {
       return customer.user_profiles.name;
-    }
-    
-    // If we have a created_by_name field (direct join)
-    if (customer.created_by_name) {
-      return customer.created_by_name;
     }
     
     return 'Unknown';
@@ -653,58 +642,24 @@ function App() {
 
   const checkIfAdmin = async (userId) => {
     try {
-      console.log('Fetching user profile for userId:', userId);
       const { data, error } = await supabase
         .from('user_profiles')
         .select('*')
         .eq('id', userId)
         .single();
       
-      console.log('User profile query result:', { data, error });
-      
       if (!error && data) {
-        console.log('Setting user profile:', data);
         setUserProfile(data);
         setIsAdmin(data.role === 'admin');
       } else {
-        console.warn('User profile not found, checking if we need to create one');
-        
-        // If user profile doesn't exist, try to create it
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          const userEmail = session.user.email;
-          const userName = session.user.user_metadata?.name || 
-                          session.user.user_metadata?.full_name || 
-                          userEmail.split('@')[0]; // fallback to email prefix
-          
-          console.log('Creating missing user profile for:', { userId, userEmail, userName });
-          
-          const { data: newProfile, error: insertError } = await supabase
-            .from('user_profiles')
-            .insert([{ 
-              id: userId, 
-              name: userName, 
-              email: userEmail, 
-              role: 'user' 
-            }])
-            .select()
-            .single();
-          
-          if (!insertError && newProfile) {
-            console.log('Created new user profile:', newProfile);
-            setUserProfile(newProfile);
-            setIsAdmin(newProfile.role === 'admin');
-          } else {
-            console.error('Failed to create user profile:', insertError);
-            setUserProfile(null);
-          }
-        } else {
-          setUserProfile(null);
-        }
+        console.error('User profile not found for userId:', userId, error);
+        setUserProfile(null);
+        setIsAdmin(false);
       }
     } catch (error) {
-      console.error('Error checking admin status:', error);
+      console.error('Error fetching user profile:', error);
       setUserProfile(null);
+      setIsAdmin(false);
     }
   };
 
@@ -730,9 +685,13 @@ function App() {
         if (error) throw error;
         
         if (data.user) {
-          await supabase.from('user_profiles').insert([
+          const { error: profileError } = await supabase.from('user_profiles').insert([
             { id: data.user.id, name: authData.name, email: authData.email, role: 'user' }
           ]);
+          
+          if (profileError) {
+            console.error('Error creating user profile:', profileError);
+          }
         }
         
         setAwaitingConfirmation(true);
@@ -755,9 +714,9 @@ function App() {
   // Inline status change handler
   const handleStatusChange = async (customer, newStatus) => {
     try {
-      await customerService.updateCustomer(customer.id, { status: newStatus }, isOnline, customer.user_profiles?.name || '');
+      await customerService.updateCustomer(customer.id, { status: newStatus });
       await refreshCustomers();
-      showNotification('Status updated' + (!isOnline ? ' (Will sync when online)' : ''), 'success');
+      showNotification('Status updated successfully!', 'success');
     } catch (error) {
       showNotification('Error updating status: ' + error.message, 'error');
     }
@@ -813,29 +772,22 @@ function App() {
         contact_name: formData.contact_name || null,
         created_by: user.id
       };
-      // Get the user's name from user profile data with fallback
-      console.log('Current userProfile when creating customer:', userProfile);
-      console.log('Current user when creating customer:', user);
-      
-      let creatorName = 'Unknown';
-      if (userProfile?.name) {
-        creatorName = userProfile.name;
-      } else if (user?.user_metadata?.name) {
-        creatorName = user.user_metadata.name;
-      } else if (user?.user_metadata?.full_name) {
-        creatorName = user.user_metadata.full_name;
-      } else if (user?.email) {
-        creatorName = user.email.split('@')[0];
+      // Ensure we have user profile data before proceeding
+      if (!userProfile) {
+        showNotification('Loading user profile, please try again in a moment...', 'warning');
+        // Try to reload user profile
+        await checkIfAdmin(user.id);
+        if (!userProfile) {
+          showNotification('Unable to load user profile. Please refresh and try again.', 'error');
+          return;
+        }
       }
-      
-      console.log('Using creator name:', creatorName);
-      let result;
       
       try {
         if (editingCustomer) {
-          result = await customerService.updateCustomer(editingCustomer.id, customerData, isOnline, creatorName);
+          await customerService.updateCustomer(editingCustomer.id, customerData);
         } else {
-          result = await customerService.createCustomer(customerData, isOnline, creatorName);
+          await customerService.createCustomer(customerData);
         }
 
         resetForm();
@@ -844,28 +796,11 @@ function App() {
         await refreshCustomers();
         
         const action = editingCustomer ? 'updated' : 'added';
+        showNotification(`Customer ${action} successfully!`, 'success');
         
-        if (result.success) {
-          // Successfully saved to database
-          showNotification(`Customer ${action} successfully and saved to database!`, 'success');
-        } else if (result.offline) {
-          // Offline mode
-          showNotification(`Customer ${action} locally. Will sync to database when online.`, 'warning');
-        } else {
-          // Unknown result format
-          showNotification(`Customer ${action} successfully!`, 'success');
-        }
-        
-      } catch (dbError) {
-        // Database error occurred but customer was saved locally
-        console.error('Database operation failed:', dbError);
-        
-        resetForm();
-        setCurrentView('list');
-        setShowProfileMenu(false);
-        await refreshCustomers();
-        
-        showNotification(dbError.message, 'error');
+      } catch (error) {
+        console.error('Database operation failed:', error);
+        showNotification('Error saving customer: ' + error.message, 'error');
       }
     } catch (error) {
       console.error('Error saving customer:', error);
@@ -916,14 +851,9 @@ function App() {
 
   const performDelete = async (customer) => {
     try {
-      await customerService.deleteCustomer(customer.id, isOnline);
+      await customerService.deleteCustomer(customer.id);
       await refreshCustomers();
-      const message = 'Customer deleted successfully!';
-      if (!isOnline) {
-        showNotification(message + ' (Will sync when online)', 'success');
-      } else {
-        showNotification(message, 'success');
-      }
+      showNotification('Customer deleted successfully!', 'success');
     } catch (error) {
       console.error('Error deleting customer:', error);
       showNotification('Error deleting customer: ' + error.message, 'error');
@@ -999,7 +929,7 @@ function App() {
       justifyContent: 'space-between',
       alignItems: 'center',
       position: 'sticky',
-      top: headerVisible ? (isOnline ? 0 : '2rem') : '-80px',
+              top: headerVisible ? 0 : '-80px',
       zIndex: 1000,
       boxShadow: '0 2px 8px 0 rgba(0, 0, 0, 0.4)',
       transition: 'top 0.3s cubic-bezier(0.4,0,0.2,1)'
@@ -1147,7 +1077,7 @@ function App() {
       padding: '1rem',
       minHeight: 'calc(100vh - 80px)',
       paddingBottom: isMobile ? '6rem' : '1rem',
-      paddingTop: isOnline ? '1rem' : '3rem'
+      paddingTop: '1rem'
     },
     card: {
       backgroundColor: '#2a2a2a',
@@ -2017,10 +1947,9 @@ function App() {
 
   return (
     <div style={styles.container}>
-      <OfflineIndicator isOnline={isOnline} />
       <header style={{
         ...styles.header,
-        top: headerVisible ? (isOnline ? 0 : '2rem') : '-80px',
+        top: headerVisible ? 0 : '-80px',
         transition: 'top 0.3s cubic-bezier(0.4,0,0.2,1)',
         zIndex: 1000
       }}>
