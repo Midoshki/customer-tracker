@@ -2405,11 +2405,16 @@ function App() {
                       );
                     }
                     
-                    // Desktop view (unchanged)
+                    // Desktop view with fixed button alignment
                     return (
                       <div
                         key={customer.id}
-                        style={styles.customerCard}
+                        style={{
+                          ...styles.customerCard,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          height: '100%'
+                        }}
                         onMouseEnter={(e) => {
                           e.currentTarget.style.boxShadow = '0 8px 32px rgba(0, 0, 0, 0.4)';
                           e.currentTarget.style.transform = 'translateY(-4px)';
@@ -2459,7 +2464,7 @@ function App() {
                           </span>
                         </div>
                         
-                        <div style={{ marginBottom: '1rem', color: '#94a3b8', fontSize: '0.875rem' }}>
+                        <div style={{ marginBottom: '1rem', color: '#94a3b8', fontSize: '0.875rem', flex: 1 }}>
                           <div style={{ marginBottom: '0.25rem' }}>📧 {customer.email || 'No email'}</div>
                           <div style={{ marginBottom: '0.25rem' }}>📞 {customer.phone}</div>
                           {customer.contact_name && (
@@ -2484,7 +2489,7 @@ function App() {
                           )}
                         </div>
                         
-                        {/* Desktop buttons - symmetrical at bottom */}
+                        {/* Desktop buttons - symmetrical at bottom with fixed alignment */}
                         <div style={{ 
                           display: 'flex', 
                           justifyContent: 'space-between', 
@@ -2494,9 +2499,11 @@ function App() {
                           paddingTop: '1rem'
                         }}>
                           {canEdit ? (
-                            <div style={{ position: 'relative', flex: 1, maxWidth: '150px' }}>
+                            <div style={{ position: 'relative', flex: 1, maxWidth: '150px' }} className="actions-container">
                               <button
-                                onClick={() => {
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
                                   setShowActionsMenu({
                                     ...showActionsMenu,
                                     [`desktop-${customer.id}`]: !showActionsMenu[`desktop-${customer.id}`]
@@ -2533,7 +2540,9 @@ function App() {
                                   marginTop: '0.25rem'
                                 }}>
                                   <button
-                                    onClick={() => {
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
                                       handleEdit(customer);
                                       setShowActionsMenu({});
                                     }}
@@ -2558,7 +2567,9 @@ function App() {
                                     ✏️ Edit Details
                                   </button>
                                   <button
-                                    onClick={() => {
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
                                       handleDelete(customer);
                                       setShowActionsMenu({});
                                     }}
@@ -2590,7 +2601,9 @@ function App() {
                           )}
                           
                           <button
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
                               const url = `https://www.google.com/maps/dir/?api=1&destination=${customer.latitude},${customer.longitude}`;
                               window.open(url, '_blank');
                             }}
