@@ -2290,20 +2290,11 @@ function App() {
                             <div style={{ opacity: 0.8 }}>{customer.address}</div>
                           </div>
                           
-                          {/* Added by info */}
-                          <div style={{ fontSize: '0.75rem', color: '#e67e22', fontWeight: 500, marginBottom: '0.25rem' }}>
-                            Added by: {getCreatorName(customer)}
-                          </div>
-                          
-                          {/* Notes */}
-                          {customer.notes && (
-                            <div style={{ marginBottom: '0.5rem', color: '#fbbf24', fontSize: '0.85em' }}>
-                              📝 {customer.notes}
+                          {/* Added by info and Actions button on same row */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '0.25rem' }}>
+                            <div style={{ fontSize: '0.75rem', color: '#e67e22', fontWeight: 500 }}>
+                              Added by: {getCreatorName(customer)}
                             </div>
-                          )}
-                          
-                          {/* Bottom row: Actions button positioned to the right */}
-                          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                             <div style={{ position: 'relative' }} className="actions-container">
                               <button
                                 onClick={(e) => {
@@ -2317,7 +2308,16 @@ function App() {
                                 style={styles.actionsButton}
                               >
                                 ⋯ Actions
-                              </button>
+                                                            </button>
+                            </div>
+                          </div>
+                          
+                          {/* Notes */}
+                          {customer.notes && (
+                            <div style={{ marginBottom: '0.5rem', color: '#fbbf24', fontSize: '0.85em' }}>
+                              📝 {customer.notes}
+                            </div>
+                          )}
                               
                               {showActionsMenu[customer.id] && (
                                 <div style={styles.actionsDropdown}>
