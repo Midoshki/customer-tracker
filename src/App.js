@@ -2239,49 +2239,16 @@ function App() {
                           style={styles.mobileCustomerCard}
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
-                            <div style={{ flex: 1 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                            <div style={{ flex: 1, marginRight: '0.5rem' }}>
+                              <div style={{ marginBottom: '0.25rem' }}>
                                 <h3 style={{ fontSize: '1rem', fontWeight: '600', color: '#f1f5f9', margin: 0 }}>
                                   {customer.name}
                                 </h3>
-                                <span
-                                  style={{
-                                    ...styles.statusBadge,
-                                    backgroundColor: statusStyle.bg,
-                                    color: statusStyle.color,
-                                    fontSize: '0.625rem',
-                                    padding: '0.125rem 0.5rem'
-                                  }}
-                                >
-                                  {canEdit ? (
-                                    <select
-                                      value={customer.status}
-                                      onChange={e => handleStatusChange(customer, e.target.value)}
-                                      style={{
-                                        background: 'transparent',
-                                        color: statusStyle.color,
-                                        border: 'none',
-                                        fontWeight: 'bold',
-                                        fontSize: '0.625rem',
-                                        textTransform: 'uppercase',
-                                        outline: 'none',
-                                        cursor: 'pointer',
-                                        minWidth: '60px'
-                                      }}
-                                    >
-                                      <option value="lead">Lead</option>
-                                      <option value="prospect">Prospect</option>
-                                      <option value="customer">Customer</option>
-                                      <option value="inactive">Inactive</option>
-                                    </select>
-                                  ) : (
-                                    customer.status
-                                  )}
-                                </span>
                               </div>
                               <div style={{ fontSize: '0.75rem', color: '#94a3b8', lineHeight: '1.2' }}>
                                 <div>{customer.phone}</div>
                                 {customer.email && <div>{customer.email}</div>}
+                                {customer.contact_name && <div style={{ color: '#a78bfa' }}>👤 {customer.contact_name}</div>}
                                 {customer.province && <div style={{ color: '#e67e22' }}>{customer.province}{customer.area && ` - ${customer.area}`}</div>}
                                 <div style={{ opacity: 0.8 }}>{customer.address}</div>
                               </div>
@@ -2293,6 +2260,45 @@ function App() {
                                   📝 {customer.notes}
                                 </div>
                               )}
+                            </div>
+                            
+                            {/* Status badge positioned separately for better alignment */}
+                            <div style={{ alignSelf: 'flex-start' }}>
+                              <span
+                                style={{
+                                  ...styles.statusBadge,
+                                  backgroundColor: statusStyle.bg,
+                                  color: statusStyle.color,
+                                  fontSize: '0.625rem',
+                                  padding: '0.125rem 0.5rem',
+                                  display: 'inline-block'
+                                }}
+                              >
+                                {canEdit ? (
+                                  <select
+                                    value={customer.status}
+                                    onChange={e => handleStatusChange(customer, e.target.value)}
+                                    style={{
+                                      background: 'transparent',
+                                      color: statusStyle.color,
+                                      border: 'none',
+                                      fontWeight: 'bold',
+                                      fontSize: '0.625rem',
+                                      textTransform: 'uppercase',
+                                      outline: 'none',
+                                      cursor: 'pointer',
+                                      minWidth: '60px'
+                                    }}
+                                  >
+                                    <option value="lead">Lead</option>
+                                    <option value="prospect">Prospect</option>
+                                    <option value="customer">Customer</option>
+                                    <option value="inactive">Inactive</option>
+                                  </select>
+                                ) : (
+                                  customer.status
+                                )}
+                              </span>
                             </div>
                             
                             {/* Mobile Actions Button */}
