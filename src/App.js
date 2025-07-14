@@ -195,16 +195,46 @@ function App() {
   // Helper: parse Google Maps link for coordinates
   function parseGoogleMapsLink(link) {
     try {
-      // Match @lat,lng,zoom or /place/.../lat,lng
+      if (!link) return null;
+      
+      // Format 1: @lat,lng or @lat,lng,zoom
       const atMatch = link.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
       if (atMatch) {
         return { lat: parseFloat(atMatch[1]), lng: parseFloat(atMatch[2]) };
       }
+      
+      // Format 2: ll=lat,lng or sll=lat,lng
+      const llMatch = link.match(/[?&](s)?ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
+      if (llMatch) {
+        return { lat: parseFloat(llMatch[2]), lng: parseFloat(llMatch[3]) };
+      }
+      
+      // Format 3: q=lat,lng
+      const qMatch = link.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/);
+      if (qMatch) {
+        return { lat: parseFloat(qMatch[1]), lng: parseFloat(qMatch[2]) };
+      }
+      
+      // Format 4: daddr=lat,lng or saddr=lat,lng (directions)
+      const addrMatch = link.match(/[?&](d|s)addr=(-?\d+\.\d+),(-?\d+\.\d+)/);
+      if (addrMatch) {
+        return { lat: parseFloat(addrMatch[2]), lng: parseFloat(addrMatch[3]) };
+      }
+      
+      // Format 5: any URL parameter with lat,lng pattern
+      const paramMatch = link.match(/[?&]\w+=(-?\d+\.\d+),(-?\d+\.\d+)/);
+      if (paramMatch) {
+        return { lat: parseFloat(paramMatch[1]), lng: parseFloat(paramMatch[2]) };
+      }
+      
+      // Format 6: any comma-separated coordinates in URL
       const coordMatch = link.match(/(-?\d+\.\d+),(-?\d+\.\d+)/);
       if (coordMatch) {
         return { lat: parseFloat(coordMatch[1]), lng: parseFloat(coordMatch[2]) };
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error("Error parsing Maps link:", e);
+    }
     return null;
   }
 
@@ -988,46 +1018,102 @@ function App() {
   // Helper: expand Google Maps short links
   async function expandShortLink(url) {
     try {
-      const res = await fetch(url, { method: 'HEAD', redirect: 'follow' });
-      return res.url;
-    } catch {
+      // Use a CORS proxy for the HEAD request if needed in production
+      const response = await fetch(url, { 
+        method: 'HEAD', 
+        redirect: 'follow',
+        mode: 'no-cors' // This helps with CORS issues in development
+      });
+      return response.url || url;
+    } catch (error) {
+      console.error("Error expanding short link:", error);
       return url;
     }
   }
 
   // Update map search handler to support short links
   async function handleMapSearch(search, setLoading, setInput, setCenter, showNotification) {
+    if (!search.trim()) return;
     setLoading(true);
-    let coords = null;
-    let input = search.trim();
-    let placeName = '';
-    if (input.includes('maps.app.goo.gl')) {
-      try {
-        const expanded = await expandShortLink(input);
-        coords = parseGoogleMapsLink(expanded);
-        if (!coords) {
-          // Try to extract place name from expanded link
-          const match = expanded.match(/\/place\/([^/]+)/);
-          if (match) {
-            placeName = decodeURIComponent(match[1].replace(/\+/g, ' '));
+    
+    try {
+      let coords = null;
+      let input = search.trim();
+      
+      // Remove @ symbol if it's at the beginning of the URL
+      if (input.startsWith('@') && input.includes('http')) {
+        input = input.substring(1);
+      }
+      
+      let placeName = '';
+      
+      // Handle Google Maps links
+      if (input.includes('maps.app.goo.gl') || input.includes('goo.gl/maps') || 
+          input.includes('google.com/maps') || input.includes('maps.google.')) {
+          
+        showNotification('Processing Google Maps link... this may take a moment', 'info');
+        
+        // First attempt - try our specialized resolver for maps.app.goo.gl links
+        if (input.includes('maps.app.goo.gl') || input.includes('goo.gl/maps')) {
+          coords = await resolveGoogleMapsShortLink(input);
+        }
+        // For regular Google Maps links, use parseGoogleMapsLink first
+        else {
+          coords = parseGoogleMapsLink(input);
+        }
+        
+        // If coords found, use them
+        if (coords) {
+          setCenter(coords);
+          setInput('');
+          showNotification('Location found from Google Maps link!', 'success');
+          return true;
+        }
+        // If not, try full resolver even for regular links as fallback
+        else if (!input.includes('maps.app.goo.gl') && !input.includes('goo.gl/maps')) {
+          coords = await resolveGoogleMapsShortLink(input);
+          if (coords) {
+            setCenter(coords);
+            setInput('');
+            showNotification('Location found from Google Maps link!', 'success');
+            return true;
           }
         }
-      } catch {}
-    } else {
-      coords = parseGoogleMapsLink(input);
+        
+        // All Google Maps link resolution methods failed
+        showNotification('Could not extract coordinates from the Maps link. Try entering the place name directly.', 'warning');
+        return false;
+      }
+      // Check if input looks like coordinates directly
+      else if (input.match(/^(-?\d+\.\d+),\s*(-?\d+\.\d+)$/)) {
+        const parts = input.split(',');
+        coords = {
+          lat: parseFloat(parts[0].trim()),
+          lng: parseFloat(parts[1].trim())
+        };
+      } 
+      // If we haven't found coordinates yet, try geocoding the input as a location name
+      if (!coords) {
+        showNotification('Searching for location...', 'info');
+        coords = await geocodeAddress(input);
+      }
+      
+      if (coords) {
+        setCenter(coords);
+        setInput('');
+        showNotification('Location found!', 'success');
+        return true;
+      } else {
+        showNotification('Location not found. Try entering a specific address or place name.', 'warning');
+        return false;
+      }
+    } catch (error) {
+      console.error("Search error:", error);
+      showNotification('Error searching for location. Please try again.', 'error');
+      return false;
+    } finally {
+      setLoading(false);
     }
-    if (!coords) {
-      // If we have a place name, use it; otherwise, use the input
-      const query = placeName || input;
-      coords = await geocodeAddress(query);
-    }
-    if (coords) {
-      setCenter(coords);
-      setInput('');
-    } else {
-      showNotification('Location not found. Try a different address or link.', 'warning');
-    }
-    setLoading(false);
   }
 
   // Fetch suggestions from Nominatim
@@ -1040,6 +1126,166 @@ function App() {
       lat: parseFloat(item.lat),
       lng: parseFloat(item.lon)
     }));
+  }
+
+  // Helper function to resolve Google Maps short links to coordinates
+  async function resolveGoogleMapsShortLink(shortLink) {
+    try {
+      // Remove @ symbol if it's at the beginning
+      if (shortLink.startsWith('@')) {
+        shortLink = shortLink.substring(1);
+      }
+      
+      // Show detailed debugging in console
+      console.log("Attempting to resolve Google Maps link:", shortLink);
+      
+      // Use a proxy to avoid CORS issues
+      const proxyUrl = 'https://api.allorigins.win/get?url=';
+      const encodedUrl = encodeURIComponent(shortLink);
+      const response = await axios.get(`${proxyUrl}${encodedUrl}`);
+      
+      if (response.status === 200 && response.data.contents) {
+        // Extract the HTML content
+        const html = response.data.contents;
+        console.log("Received HTML content length:", html.length);
+        
+        // Method 1: Look for meta tags with coordinates
+        let metaMatch = html.match(/"geo\.position" content="(-?\d+\.\d+);(-?\d+\.\d+)"/);
+        if (metaMatch) {
+          console.log("Found coordinates in meta geo.position:", metaMatch[1], metaMatch[2]);
+          return {
+            lat: parseFloat(metaMatch[1]),
+            lng: parseFloat(metaMatch[2])
+          };
+        }
+        
+        // Method 2: Look for viewport initialization with coordinates
+        let viewportMatch = html.match(/center=(-?\d+\.\d+)%2C(-?\d+\.\d+)&zoom/);
+        if (viewportMatch) {
+          console.log("Found coordinates in viewport:", viewportMatch[1], viewportMatch[2]);
+          return {
+            lat: parseFloat(viewportMatch[1]),
+            lng: parseFloat(viewportMatch[2])
+          };
+        }
+        
+        // Method 3: Look for any @lat,lng pattern
+        let atMatch = html.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+        if (atMatch) {
+          console.log("Found coordinates in @lat,lng format:", atMatch[1], atMatch[2]);
+          return {
+            lat: parseFloat(atMatch[1]),
+            lng: parseFloat(atMatch[2])
+          };
+        }
+        
+        // Method 4: Look for JSON data with place details - this often has location data for places
+        let jsonDataMatch = html.match(/window\.APP_INITIALIZATION_STATE=([^;]+);/);
+        if (jsonDataMatch) {
+          try {
+            const jsonText = jsonDataMatch[1].replace(/\\"/g, '"');
+            // Look for coordinate patterns in the JSON text
+            const coordMatches = jsonText.match(/\[(-?\d+\.\d+),(-?\d+\.\d+)\]/g);
+            if (coordMatches && coordMatches.length > 0) {
+              // Usually the first set of coordinates is the place location
+              const firstCoord = coordMatches[0].match(/\[(-?\d+\.\d+),(-?\d+\.\d+)\]/);
+              if (firstCoord) {
+                console.log("Found coordinates in JSON data:", firstCoord[1], firstCoord[2]);
+                return {
+                  lat: parseFloat(firstCoord[1]),
+                  lng: parseFloat(firstCoord[2])
+                };
+              }
+            }
+          } catch (e) {
+            console.error("Error parsing JSON data:", e);
+          }
+        }
+        
+        // Method 5: Look for embedded data in script tags - common for place pages
+        const scriptRegex = /<script[^>]*>[\s\S]*?"location"\s*:\s*{\s*"latitude"\s*:\s*(-?\d+\.\d+)\s*,\s*"longitude"\s*:\s*(-?\d+\.\d+)[\s\S]*?<\/script>/;
+        const scriptMatch = html.match(scriptRegex);
+        if (scriptMatch) {
+          console.log("Found coordinates in script tag:", scriptMatch[1], scriptMatch[2]);
+          return {
+            lat: parseFloat(scriptMatch[1]),
+            lng: parseFloat(scriptMatch[2])
+          };
+        }
+        
+        // Method 6: Extract from canonical URL
+        let canonicalMatch = html.match(/<link rel="canonical" href="([^"]+)"/);
+        if (canonicalMatch) {
+          const canonicalUrl = canonicalMatch[1];
+          console.log("Found canonical URL:", canonicalUrl);
+          const coordsFromCanonical = parseGoogleMapsLink(canonicalUrl);
+          if (coordsFromCanonical) {
+            return coordsFromCanonical;
+          }
+        }
+        
+        // Method 7: Extract from any URL in the HTML that contains coordinates
+        const urlsWithCoords = html.match(/https:\/\/www\.google\.com\/maps[^"']+/g);
+        if (urlsWithCoords) {
+          console.log("Found Google Maps URLs:", urlsWithCoords.length);
+          for (const url of urlsWithCoords) {
+            const coordsFromUrl = parseGoogleMapsLink(url);
+            if (coordsFromUrl) {
+              return coordsFromUrl;
+            }
+          }
+        }
+        
+        // Method 8: Look for place ID and perform a follow-up request
+        const placeIdMatch = html.match(/place_id=([^&"']+)/);
+        if (placeIdMatch) {
+          const placeId = placeIdMatch[1];
+          console.log("Found place ID:", placeId);
+          
+          try {
+            // Try to fetch more details using the place ID
+            const placeUrl = `https://www.google.com/maps/place/?q=place_id:${placeId}`;
+            const placeResponse = await axios.get(`${proxyUrl}${encodeURIComponent(placeUrl)}`);
+            
+            if (placeResponse.status === 200 && placeResponse.data.contents) {
+              const placeHtml = placeResponse.data.contents;
+              
+              // Look for coordinates in the place HTML
+              let placeMatch = placeHtml.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+              if (placeMatch) {
+                console.log("Found coordinates from place ID lookup:", placeMatch[1], placeMatch[2]);
+                return {
+                  lat: parseFloat(placeMatch[1]),
+                  lng: parseFloat(placeMatch[2])
+                };
+              }
+            }
+          } catch (e) {
+            console.error("Error fetching place details:", e);
+          }
+        }
+        
+        // Method 9: As a last resort, try to extract any place name and geocode it
+        const titleMatch = html.match(/<title>([^<]+)<\/title>/);
+        if (titleMatch) {
+          const title = titleMatch[1].replace(' - Google Maps', '').trim();
+          if (title && !title.toLowerCase().includes('google maps')) {
+            console.log("Trying to geocode place name from title:", title);
+            try {
+              return await geocodeAddress(title);
+            } catch (e) {
+              console.error("Error geocoding title:", e);
+            }
+          }
+        }
+      }
+      
+      console.log("Failed to extract coordinates from Google Maps link");
+      return null;
+    } catch (error) {
+      console.error("Error resolving short link:", error);
+      return null;
+    }
   }
 
   if (loading) {
@@ -1686,7 +1932,7 @@ function App() {
                 value={mapSearch}
                 onChange={async e => {
                   setMapSearch(e.target.value);
-                  if (e.target.value && !e.target.value.includes('maps.app.goo.gl')) {
+                  if (e.target.value && !e.target.value.includes('maps.app.goo.gl') && !e.target.value.includes('goo.gl/maps')) {
                     const suggestions = await fetchSuggestions(e.target.value);
                     setMapSuggestions(suggestions);
                     setShowMapSuggestions(true);
@@ -1732,15 +1978,15 @@ function App() {
                 center={currentLocation ? [currentLocation.lat, currentLocation.lng] : [30.0444, 31.2357]}
                 zoom={currentLocation ? 12 : 8}
                 style={{ height: '100%', width: '100%' }}
-                whenCreated={map => {
-                  map.on('click', e => {
-                    setFilterCenter({ lat: e.latlng.lat, lng: e.latlng.lng });
-                  });
-                }}
               >
                 <TileLayer
                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                
+                <MapClickHandler 
+                  onMapClick={(latlng) => setFilterCenter(latlng)} 
+                  tempMarker={null}
                 />
                 
                 {currentLocation && (
@@ -1906,23 +2152,73 @@ function App() {
                   <label style={styles.label}>
                     Location * {tempMarker ? '✅ Location selected' : '📍 Click on map to select location'}
                   </label>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        requestUserLocation();
+                      }}
+                      style={styles.locationButton}
+                    >
+                      📍 Get My Location
+                    </button>
+                  </div>
+                </div>
+                
+                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', alignItems: 'center', position: 'relative' }}>
+                  <input
+                    type="text"
+                    placeholder="Search address or paste Google Maps link..."
+                    value={addMapSearch}
+                    onChange={async e => {
+                      setAddMapSearch(e.target.value);
+                      if (e.target.value && !e.target.value.includes('maps.app.goo.gl') && !e.target.value.includes('goo.gl/maps')) {
+                        const suggestions = await fetchSuggestions(e.target.value);
+                        setAddMapSuggestions(suggestions);
+                        setShowAddMapSuggestions(true);
+                      } else {
+                        setAddMapSuggestions([]);
+                        setShowAddMapSuggestions(false);
+                      }
+                    }}
+                    style={{ ...styles.input, flex: 1 }}
+                    onFocus={() => setShowAddMapSuggestions(addMapSuggestions.length > 0)}
+                    onBlur={() => setTimeout(() => setShowAddMapSuggestions(false), 200)}
+                  />
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      requestUserLocation();
+                    style={styles.secondaryButton}
+                    disabled={addMapSearchLoading || !addMapSearch}
+                    onClick={async () => {
+                      await handleMapSearch(addMapSearch, setAddMapSearchLoading, setAddMapSearch, setTempMarker, showNotification);
                     }}
-                    style={styles.locationButton}
                   >
-                    📍 Get My Location
+                    {addMapSearchLoading ? 'Searching...' : 'Go'}
                   </button>
+                  {showAddMapSuggestions && addMapSuggestions.length > 0 && (
+                    <div style={{ position: 'absolute', top: '100%', left: 0, background: '#232323', zIndex: 1002, width: '100%', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.2)', pointerEvents: 'auto' }}>
+                      {addMapSuggestions.map((s, i) => (
+                        <div
+                          key={i}
+                          style={{ padding: '0.75rem', cursor: 'pointer', color: '#e2e8f0', borderBottom: i < addMapSuggestions.length-1 ? '1px solid #3a3a3a' : 'none' }}
+                          onMouseDown={() => {
+                            setTempMarker({ lat: s.lat, lng: s.lng });
+                            setAddMapSearch(s.display);
+                            setShowAddMapSuggestions(false);
+                          }}
+                        >
+                          {s.display}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
+                
                 <div style={styles.mapContainer}>
                   <MapContainer
-                    center={tempMarker ? [tempMarker.lat, tempMarker.lng] : 
-                           currentLocation ? [currentLocation.lat, currentLocation.lng] : 
-                           [30.0444, 31.2357]}
+                    center={tempMarker ? [tempMarker.lat, tempMarker.lng] : currentLocation ? [currentLocation.lat, currentLocation.lng] : [30.0444, 31.2357]}
                     zoom={tempMarker ? 15 : currentLocation ? 12 : 8}
                     style={{ height: '100%', width: '100%' }}
                   >
@@ -1930,6 +2226,8 @@ function App() {
                       attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                       url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     />
+                    
+                    <MapClickHandler onMapClick={handleMapClick} tempMarker={tempMarker} />
                     
                     {currentLocation && (
                       <Marker
@@ -1975,80 +2273,6 @@ function App() {
                         </Marker>
                       ))}
                     
-                    <MapClickHandler onMapClick={handleMapClick} tempMarker={tempMarker} />
-                  </MapContainer>
-                </div>
-                {tempMarker && (
-                  <div style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: '#94a3b8' }}>
-                    Selected coordinates: {tempMarker.lat.toFixed(6)}, {tempMarker.lng.toFixed(6)}
-                  </div>
-                )}
-              </div>
-              
-              <div style={styles.formGroup}>
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', alignItems: 'center', position: 'relative' }}>
-                  <input
-                    type="text"
-                    placeholder="Search address or paste Google Maps link..."
-                    value={addMapSearch}
-                    onChange={async e => {
-                      setAddMapSearch(e.target.value);
-                      if (e.target.value && !e.target.value.includes('maps.app.goo.gl')) {
-                        const suggestions = await fetchSuggestions(e.target.value);
-                        setAddMapSuggestions(suggestions);
-                        setShowAddMapSuggestions(true);
-                      } else {
-                        setAddMapSuggestions([]);
-                        setShowAddMapSuggestions(false);
-                      }
-                    }}
-                    style={{ ...styles.input, flex: 1 }}
-                    onFocus={() => setShowAddMapSuggestions(addMapSuggestions.length > 0)}
-                    onBlur={() => setTimeout(() => setShowAddMapSuggestions(false), 200)}
-                  />
-                  <button
-                    type="button"
-                    style={styles.secondaryButton}
-                    disabled={addMapSearchLoading || !addMapSearch}
-                    onClick={async () => {
-                      await handleMapSearch(addMapSearch, setAddMapSearchLoading, setAddMapSearch, setTempMarker, showNotification);
-                    }}
-                  >
-                    {addMapSearchLoading ? 'Searching...' : 'Go'}
-                  </button>
-                  {showAddMapSuggestions && addMapSuggestions.length > 0 && (
-                    <div style={{ position: 'absolute', top: '100%', left: 0, background: '#232323', zIndex: 1002, width: '100%', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.2)', pointerEvents: 'auto' }}>
-                      {addMapSuggestions.map((s, i) => (
-                        <div
-                          key={i}
-                          style={{ padding: '0.75rem', cursor: 'pointer', color: '#e2e8f0', borderBottom: i < addMapSuggestions.length-1 ? '1px solid #3a3a3a' : 'none' }}
-                          onMouseDown={() => {
-                            setTempMarker({ lat: s.lat, lng: s.lng });
-                            setAddMapSearch(s.display);
-                            setShowAddMapSuggestions(false);
-                          }}
-                        >
-                          {s.display}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div style={styles.mapContainer}>
-                  <MapContainer
-                    center={tempMarker ? [tempMarker.lat, tempMarker.lng] : currentLocation ? [currentLocation.lat, currentLocation.lng] : [30.0444, 31.2357]}
-                    zoom={tempMarker ? 15 : currentLocation ? 12 : 8}
-                    style={{ height: '100%', width: '100%' }}
-                    whenCreated={map => {
-                      map.on('click', e => {
-                        setTempMarker({ lat: e.latlng.lat, lng: e.latlng.lng });
-                      });
-                    }}
-                  >
-                    <TileLayer
-                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    />
                     {tempMarker && (
                       <Marker position={[tempMarker.lat, tempMarker.lng]} icon={filterCenterIcon}>
                         <Popup>
