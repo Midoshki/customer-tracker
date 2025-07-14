@@ -2484,33 +2484,131 @@ function App() {
                           )}
                         </div>
                         
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
-                            {canEdit && (
-                              <>
-                                <button
-                                  onClick={() => handleEdit(customer)}
-                                  style={styles.secondaryButton}
-                                >
-                                  ✏️ Edit
-                                </button>
-                                <button
-                                  onClick={() => handleDelete(customer)}
-                                  style={styles.dangerButton}
-                                >
-                                  🗑️ Delete
-                                </button>
-                              </>
-                            )}
-                          </div>
+                        {/* Desktop buttons - symmetrical at bottom */}
+                        <div style={{ 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
+                          alignItems: 'center', 
+                          gap: '1rem',
+                          marginTop: 'auto',
+                          paddingTop: '1rem'
+                        }}>
+                          {canEdit ? (
+                            <div style={{ position: 'relative', flex: 1, maxWidth: '150px' }}>
+                              <button
+                                onClick={() => {
+                                  setShowActionsMenu({
+                                    ...showActionsMenu,
+                                    [`desktop-${customer.id}`]: !showActionsMenu[`desktop-${customer.id}`]
+                                  });
+                                }}
+                                style={{
+                                  ...styles.secondaryButton,
+                                  padding: '0.75rem 1.5rem',
+                                  fontSize: '0.875rem',
+                                  fontWeight: '600',
+                                  borderRadius: '12px',
+                                  width: '100%',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '0.5rem'
+                                }}
+                              >
+                                ✏️ EDIT
+                              </button>
+                              
+                              {showActionsMenu[`desktop-${customer.id}`] && (
+                                <div style={{
+                                  position: 'absolute',
+                                  top: '100%',
+                                  left: 0,
+                                  right: 0,
+                                  backgroundColor: '#2a2a2a',
+                                  border: '1px solid #3a3a3a',
+                                  borderRadius: '8px',
+                                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
+                                  padding: '0.25rem',
+                                  zIndex: 1001,
+                                  marginTop: '0.25rem'
+                                }}>
+                                  <button
+                                    onClick={() => {
+                                      handleEdit(customer);
+                                      setShowActionsMenu({});
+                                    }}
+                                    style={{
+                                      width: '100%',
+                                      padding: '0.5rem 0.75rem',
+                                      backgroundColor: 'transparent',
+                                      border: 'none',
+                                      color: '#e2e8f0',
+                                      fontSize: '0.75rem',
+                                      fontWeight: '500',
+                                      cursor: 'pointer',
+                                      borderRadius: '4px',
+                                      transition: 'all 0.3s ease',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '0.5rem'
+                                    }}
+                                    onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'}
+                                    onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                                  >
+                                    ✏️ Edit Details
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      handleDelete(customer);
+                                      setShowActionsMenu({});
+                                    }}
+                                    style={{
+                                      width: '100%',
+                                      padding: '0.5rem 0.75rem',
+                                      backgroundColor: 'transparent',
+                                      border: 'none',
+                                      color: '#f87171',
+                                      fontSize: '0.75rem',
+                                      fontWeight: '500',
+                                      cursor: 'pointer',
+                                      borderRadius: '4px',
+                                      transition: 'all 0.3s ease',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '0.5rem'
+                                    }}
+                                    onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(248, 113, 113, 0.1)'}
+                                    onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                                  >
+                                    🗑️ Delete
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div style={{ flex: 1, maxWidth: '150px' }}></div>
+                          )}
+                          
                           <button
                             onClick={() => {
                               const url = `https://www.google.com/maps/dir/?api=1&destination=${customer.latitude},${customer.longitude}`;
                               window.open(url, '_blank');
                             }}
-                            style={{ ...styles.primaryButton, padding: '0.5rem 1rem', fontSize: '0.875rem' }}
+                            style={{
+                              ...styles.primaryButton,
+                              padding: '0.75rem 1.5rem',
+                              fontSize: '0.875rem',
+                              fontWeight: '600',
+                              borderRadius: '12px',
+                              flex: 1,
+                              maxWidth: '150px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.5rem'
+                            }}
                           >
-                            🧭 Navigate
+                            🧭 NAVIGATE
                           </button>
                         </div>
                       </div>
