@@ -590,58 +590,40 @@ function App() {
     }
   };
 
-  // Initialize authentication once on mount
+  // Check authentication on load (only once)
   useEffect(() => {
-    let authSubscription = null;
+    checkUser();
     
-    const initAuth = async () => {
-      try {
-        // Check if user is already logged in
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          setUser(session.user);
-          await checkIfAdmin(session.user.id);
-        }
-      } catch (error) {
-        console.error('Error checking initial auth:', error);
-      }
-    };
-    
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         setUser(session.user);
-        await checkIfAdmin(session.user.id);
+        checkIfAdmin(session.user.id);
       } else {
         setUser(null);
         setIsAdmin(false);
-        setShowProfileMenu(false);
-        setShowActionsMenu({});
       }
     });
-    
-    authSubscription = subscription;
-    initAuth();
-    
-    return () => {
-      if (authSubscription) {
-        authSubscription.unsubscribe();
-      }
-    };
-  }, []); // Empty dependency array - run only once on mount
 
-  // Separate effect for click outside handlers
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []); // No dependencies - run only once
+
+  // Handle clicking outside for menus
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (showProfileMenu && !event.target.closest('.profile-container')) {
         setShowProfileMenu(false);
       }
+      // Close actions menu when clicking outside
       if (Object.keys(showActionsMenu).length > 0 && !event.target.closest('.actions-container')) {
         setShowActionsMenu({});
       }
+      // Close map suggestions when clicking outside
       if (showMapSuggestions && !event.target.closest('.map-search-container')) {
         setShowMapSuggestions(false);
       }
+      // Close add map suggestions when clicking outside
       if (showAddMapSuggestions && !event.target.closest('.add-map-search-container')) {
         setShowAddMapSuggestions(false);
       }
@@ -654,7 +636,17 @@ function App() {
     };
   }, [showProfileMenu, showActionsMenu, showMapSuggestions, showAddMapSuggestions]);
 
-
+  const checkUser = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        setUser(session.user);
+        await checkIfAdmin(session.user.id);
+      }
+    } catch (error) {
+      console.error('Error checking user:', error);
+    }
+  };
 
   const checkIfAdmin = async (userId) => {
     try {
@@ -709,11 +701,10 @@ function App() {
   };
 
   const handleLogout = async () => {
-    try {
-      await supabase.auth.signOut();
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
+    await supabase.auth.signOut();
+    setUser(null);
+    setIsAdmin(false);
+    setShowProfileMenu(false);
   };
 
   // Inline status change handler
@@ -2024,6 +2015,7 @@ function App() {
 
           <div style={{ position: 'relative' }} className="profile-container">
             <button 
+              type="button"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -2061,6 +2053,7 @@ function App() {
                   <div style={styles.profileRole}>{isAdmin ? 'Administrator' : 'User'}</div>
                 </div>
                 <button
+                  type="button"
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();

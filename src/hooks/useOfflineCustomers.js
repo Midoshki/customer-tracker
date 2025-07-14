@@ -61,7 +61,7 @@ const useOfflineCustomers = (user) => {
 
   useEffect(() => {
     refreshCustomers();
-  }, [refreshCustomers]);
+  }, [isOnline, refreshCustomers, user]);
 
   // Sync when coming back online
   useEffect(() => {
