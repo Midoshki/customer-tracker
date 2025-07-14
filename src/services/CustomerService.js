@@ -195,9 +195,16 @@ class CustomerService {
           .order('created_at', { ascending: false });
         
         if (error) throw error;
+        
+        // Normalize the data format to match local storage format
+        const normalizedData = (data || []).map(customer => ({
+          ...customer,
+          user_profiles: customer.user_profiles ? [customer.user_profiles] : []
+        }));
+        
         // Update local storage
-        this.offlineManager.storeLocally('customers', data || []);
-        return data || [];
+        this.offlineManager.storeLocally('customers', normalizedData);
+        return normalizedData;
       } catch (error) {
         console.error('Error fetching customers:', error);
         // Fallback to local data
@@ -223,7 +230,12 @@ class CustomerService {
         .order('created_at', { ascending: false });
       
       if (!error) {
-        this.offlineManager.storeLocally('customers', data);
+        // Normalize the data format to match local storage format
+        const normalizedData = (data || []).map(customer => ({
+          ...customer,
+          user_profiles: customer.user_profiles ? [customer.user_profiles] : []
+        }));
+        this.offlineManager.storeLocally('customers', normalizedData);
       }
     } catch (error) {
       console.error('Failed to sync with server:', error);

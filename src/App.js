@@ -696,10 +696,33 @@ function App() {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setIsAdmin(false);
-    setShowProfileMenu(false);
+    try {
+      // Clear local state first
+      setUser(null);
+      setIsAdmin(false);
+      setShowProfileMenu(false);
+      
+      // Clear Supabase auth tokens from local storage
+      localStorage.removeItem('supabase.auth.token');
+      sessionStorage.removeItem('supabase.auth.token');
+      
+      // Sign out from Supabase
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Logout error:', error);
+        // Force logout even if Supabase fails
+      }
+      
+      // Force page reload to clear any persistent state
+      window.location.reload();
+    } catch (error) {
+      console.error('Error during logout:', error);
+      // Force logout even if there's an error
+      setUser(null);
+      setIsAdmin(false);
+      setShowProfileMenu(false);
+      window.location.reload();
+    }
   };
 
   // Inline status change handler
@@ -2318,6 +2341,24 @@ function App() {
                               
                               {showActionsMenu[customer.id] && (
                                 <div style={styles.actionsDropdown}>
+                                  {isMobile && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        window.location.href = `tel:${customer.phone}`;
+                                        setShowActionsMenu({});
+                                      }}
+                                      style={{
+                                        ...styles.actionItem,
+                                        color: '#22c55e'
+                                      }}
+                                      onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(34, 197, 94, 0.1)'}
+                                      onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                                    >
+                                      📞 Call
+                                    </button>
+                                  )}
                                   {canEdit && (
                                     <>
                                       <button
@@ -2467,16 +2508,6 @@ function App() {
                         
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
-                            {isMobile && (
-                              <button
-                                onClick={() => {
-                                  window.location.href = `tel:${customer.phone}`;
-                                }}
-                                style={styles.primaryButton}
-                              >
-                                📞 Call
-                              </button>
-                            )}
                             {canEdit && (
                               <>
                                 <button
