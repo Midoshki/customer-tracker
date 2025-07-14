@@ -556,6 +556,22 @@ function App() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // Validate required fields
+    if (!formData.name.trim()) {
+      showNotification('Customer name is required!', 'warning');
+      return;
+    }
+    
+    if (!formData.phone.trim()) {
+      showNotification('Phone number is required!', 'warning');
+      return;
+    }
+    
+    if (!formData.address.trim()) {
+      showNotification('Address is required!', 'warning');
+      return;
+    }
+    
     if (!tempMarker) {
       showNotification('Please pin the customer location on the map first!', 'warning');
       return;
@@ -1410,102 +1426,254 @@ function App() {
   if (!user) {
     if (awaitingConfirmation) {
       return (
-        <div style={styles.authContainer}>
-          <div style={styles.authCard}>
-            <h2 style={{ color: '#e67e22', textAlign: 'center' }}>
-              Account created!
-            </h2>
-            <p style={{ color: '#fff', textAlign: 'center' }}>
-              Please check your email to verify your account before logging in.
-            </p>
-            <button
-              style={styles.primaryButton}
-              onClick={() => {
-                setAuthMode('login');
-                setAwaitingConfirmation(false);
-              }}
-            >
-              Go to Login
-            </button>
+        <>
+          <div style={styles.authContainer}>
+            <div style={styles.authCard}>
+              <h2 style={{ color: '#e67e22', textAlign: 'center' }}>
+                Account created!
+              </h2>
+              <p style={{ color: '#fff', textAlign: 'center' }}>
+                Please check your email to verify your account before logging in.
+              </p>
+              <button
+                style={styles.primaryButton}
+                onClick={() => {
+                  setAuthMode('login');
+                  setAwaitingConfirmation(false);
+                }}
+              >
+                Go to Login
+              </button>
+            </div>
           </div>
-        </div>
+          
+          {/* Custom Notification */}
+          {notification.show && (
+            <div style={{
+              ...styles.notification,
+              ...(notification.type === 'success' ? styles.notificationSuccess : {}),
+              ...(notification.type === 'error' ? styles.notificationError : {}),
+              ...(notification.type === 'warning' ? styles.notificationWarning : {})
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '1.25rem' }}>
+                  {notification.type === 'success' && '✅'}
+                  {notification.type === 'error' && '❌'}
+                  {notification.type === 'warning' && '⚠️'}
+                  {notification.type === 'info' && 'ℹ️'}
+                </span>
+                <span style={{ flex: 1 }}>{notification.message}</span>
+                
+                {notification.isConfirm ? (
+                  <div style={{ display: 'flex', gap: '0.5rem', marginLeft: '1rem' }}>
+                    <button
+                      onClick={() => {
+                        notification.onConfirm?.();
+                        setNotification({ show: false, message: '', type: 'info' });
+                      }}
+                      style={{
+                        background: '#dc2626',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '6px',
+                        padding: '0.375rem 0.75rem',
+                        fontSize: '0.75rem',
+                        fontWeight: '500',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Delete
+                    </button>
+                    <button
+                      onClick={() => {
+                        notification.onCancel?.();
+                      }}
+                      style={{
+                        background: '#4a5568',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '6px',
+                        padding: '0.375rem 0.75rem',
+                        fontSize: '0.75rem',
+                        fontWeight: '500',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setNotification({ show: false, message: '', type: 'info' })}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#94a3b8',
+                      cursor: 'pointer',
+                      fontSize: '1.25rem',
+                      marginLeft: 'auto'
+                    }}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </>
       );
     }
     return (
-      <div style={styles.authContainer}>
-        <div style={styles.authCard}>
-          <img 
-            src="/logo.png" 
-            alt="MTM Logo" 
-            style={styles.authLogo}
-            onError={(e) => {
-              e.target.style.display = 'none';
-            }}
-          />
-          <h2 style={{ fontSize: '1.875rem', fontWeight: '700', textAlign: 'center', marginBottom: '2rem', color: '#ffffff' }}>
-            {authMode === 'login' ? 'Sign In' : 'Create Account'}
-          </h2>
-          
-          <form onSubmit={handleAuth}>
-            {authMode === 'signup' && (
+      <>
+        <div style={styles.authContainer}>
+          <div style={styles.authCard}>
+            <img 
+              src="/logo.png" 
+              alt="MTM Logo" 
+              style={styles.authLogo}
+              onError={(e) => {
+                e.target.style.display = 'none';
+              }}
+            />
+            <h2 style={{ fontSize: '1.875rem', fontWeight: '700', textAlign: 'center', marginBottom: '2rem', color: '#ffffff' }}>
+              {authMode === 'login' ? 'Sign In' : 'Create Account'}
+            </h2>
+            
+            <form onSubmit={handleAuth}>
+              {authMode === 'signup' && (
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Full Name</label>
+                  <input
+                    type="text"
+                    style={styles.input}
+                    value={authData.name}
+                    onChange={(e) => setAuthData({...authData, name: e.target.value})}
+                    required
+                    placeholder="Enter your full name"
+                  />
+                </div>
+              )}
+              
               <div style={styles.formGroup}>
-                <label style={styles.label}>Full Name</label>
+                <label style={styles.label}>Email</label>
                 <input
-                  type="text"
+                  type="email"
                   style={styles.input}
-                  value={authData.name}
-                  onChange={(e) => setAuthData({...authData, name: e.target.value})}
+                  value={authData.email}
+                  onChange={(e) => setAuthData({...authData, email: e.target.value})}
                   required
-                  placeholder="Enter your full name"
+                  placeholder="Enter your email"
                 />
               </div>
-            )}
+              
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Password</label>
+                <input
+                  type="password"
+                  style={styles.input}
+                  value={authData.password}
+                  onChange={(e) => setAuthData({...authData, password: e.target.value})}
+                  required
+                  minLength={6}
+                  placeholder="Enter your password (min 6 characters)"
+                />
+              </div>
+              
+              <button
+                type="submit"
+                style={{ ...styles.primaryButton, width: '100%', marginBottom: '1rem' }}
+                disabled={authLoading}
+              >
+                {authLoading ? 'Loading...' : (authMode === 'login' ? 'Sign In' : 'Create Account')}
+              </button>
+            </form>
             
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Email</label>
-              <input
-                type="email"
-                style={styles.input}
-                value={authData.email}
-                onChange={(e) => setAuthData({...authData, email: e.target.value})}
-                required
-                placeholder="Enter your email"
-              />
+            <div style={{ textAlign: 'center' }}>
+              <button
+                type="button"
+                onClick={() => setAuthMode(authMode === 'login' ? 'signup' : 'login')}
+                style={{ background: 'none', border: 'none', color: '#e67e22', textDecoration: 'underline', cursor: 'pointer' }}
+              >
+                {authMode === 'login' ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
+              </button>
             </div>
-            
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Password</label>
-              <input
-                type="password"
-                style={styles.input}
-                value={authData.password}
-                onChange={(e) => setAuthData({...authData, password: e.target.value})}
-                required
-                minLength={6}
-                placeholder="Enter your password (min 6 characters)"
-              />
-            </div>
-            
-            <button
-              type="submit"
-              style={{ ...styles.primaryButton, width: '100%', marginBottom: '1rem' }}
-              disabled={authLoading}
-            >
-              {authLoading ? 'Loading...' : (authMode === 'login' ? 'Sign In' : 'Create Account')}
-            </button>
-          </form>
-          
-          <div style={{ textAlign: 'center' }}>
-            <button
-              type="button"
-              onClick={() => setAuthMode(authMode === 'login' ? 'signup' : 'login')}
-              style={{ background: 'none', border: 'none', color: '#e67e22', textDecoration: 'underline', cursor: 'pointer' }}
-            >
-              {authMode === 'login' ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
-            </button>
           </div>
         </div>
-      </div>
+        
+        {/* Custom Notification */}
+        {notification.show && (
+          <div style={{
+            ...styles.notification,
+            ...(notification.type === 'success' ? styles.notificationSuccess : {}),
+            ...(notification.type === 'error' ? styles.notificationError : {}),
+            ...(notification.type === 'warning' ? styles.notificationWarning : {})
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span style={{ fontSize: '1.25rem' }}>
+                {notification.type === 'success' && '✅'}
+                {notification.type === 'error' && '❌'}
+                {notification.type === 'warning' && '⚠️'}
+                {notification.type === 'info' && 'ℹ️'}
+              </span>
+              <span style={{ flex: 1 }}>{notification.message}</span>
+              
+              {notification.isConfirm ? (
+                <div style={{ display: 'flex', gap: '0.5rem', marginLeft: '1rem' }}>
+                  <button
+                    onClick={() => {
+                      notification.onConfirm?.();
+                      setNotification({ show: false, message: '', type: 'info' });
+                    }}
+                    style={{
+                      background: '#dc2626',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '6px',
+                      padding: '0.375rem 0.75rem',
+                      fontSize: '0.75rem',
+                      fontWeight: '500',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Delete
+                  </button>
+                  <button
+                    onClick={() => {
+                      notification.onCancel?.();
+                    }}
+                    style={{
+                      background: '#4a5568',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '6px',
+                      padding: '0.375rem 0.75rem',
+                      fontSize: '0.75rem',
+                      fontWeight: '500',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setNotification({ show: false, message: '', type: 'info' })}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#94a3b8',
+                    cursor: 'pointer',
+                    fontSize: '1.25rem',
+                    marginLeft: 'auto'
+                  }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </>
     );
   }
 
@@ -2414,7 +2582,6 @@ function App() {
                 <button
                   type="submit"
                   style={styles.primaryButton}
-                  disabled={!tempMarker}
                 >
                   {editingCustomer ? 'Update Customer' : 'Add Customer'}
                 </button>
