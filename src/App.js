@@ -247,6 +247,76 @@ function App() {
     }
     return null;
   }
+  
+  // Simple function to extract useful info from Google Maps URL
+  async function getPlaceDetails(mapsUrl) {
+    if (!mapsUrl) return null;
+    
+    // Clean up URL (remove @ prefix if present)
+    if (mapsUrl.startsWith('@')) {
+      mapsUrl = mapsUrl.substring(1);
+    }
+    
+    try {
+      // Try direct URL geocoding with OpenStreetMap's Nominatim
+      console.log("Trying Nominatim with URL:", mapsUrl);
+      const response = await axios.get(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(mapsUrl)}&format=json`);
+      
+      if (response.data && response.data.length > 0) {
+        const coords = {
+          lat: parseFloat(response.data[0].lat),
+          lng: parseFloat(response.data[0].lon)
+        };
+        console.log("Found coordinates via Nominatim:", coords);
+        return coords;
+      }
+      
+      // Try to extract and geocode any place name from the URL
+      const placeName = extractPlaceNameFromUrl(mapsUrl);
+      if (placeName) {
+        console.log("Trying with extracted place name:", placeName);
+        const nameResponse = await axios.get(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(placeName)}&format=json`);
+        if (nameResponse.data && nameResponse.data.length > 0) {
+          const coords = {
+            lat: parseFloat(nameResponse.data[0].lat),
+            lng: parseFloat(nameResponse.data[0].lon)
+          };
+          console.log("Found coordinates via place name:", coords);
+          return coords;
+        }
+      }
+    } catch (error) {
+      console.error("Error getting place details:", error);
+    }
+    
+    return null;
+  }
+
+  // Helper function to extract a meaningful place name from Google Maps URL
+  function extractPlaceNameFromUrl(url) {
+    // Try to extract place name from URL formats like /place/PlaceName/
+    const placeMatch = url.match(/\/place\/([^\/]+)/);
+    if (placeMatch && placeMatch[1]) {
+      return decodeURIComponent(placeMatch[1].replace(/\+/g, ' ')).replace(/-/g, ' ');
+    }
+    
+    // Try to extract location name from the URL path
+    const pathParts = url.split('/');
+    for (let i = 0; i < pathParts.length; i++) {
+      const part = pathParts[i];
+      // Skip common URL parts and very short segments
+      if (part && 
+          !part.includes('.') && 
+          !part.includes('maps') && 
+          !part.includes('http') && 
+          !part.includes('goo.gl') && 
+          part.length > 3) {
+        return decodeURIComponent(part.replace(/\+/g, ' ')).replace(/-/g, ' ');
+      }
+    }
+    
+    return null;
+  }
 
   // Detect mobile screen size
   useEffect(() => {
@@ -621,10 +691,10 @@ function App() {
       justifyContent: 'space-between',
       alignItems: 'center',
       position: 'sticky',
-      top: isOnline ? 0 : '2rem',
+      top: headerVisible ? (isOnline ? 0 : '2rem') : '-80px',
       zIndex: 1000,
       boxShadow: '0 2px 8px 0 rgba(0, 0, 0, 0.4)',
-      transition: 'top 0.3s ease'
+      transition: 'top 0.3s cubic-bezier(0.4,0,0.2,1)'
     },
     headerContent: {
       display: 'flex',
@@ -1039,77 +1109,99 @@ function App() {
     try {
       let coords = null;
       let input = search.trim();
+      console.log("Processing search input:", input);
       
-      // Remove @ symbol if it's at the beginning of the URL
-      if (input.startsWith('@') && input.includes('http')) {
-        input = input.substring(1);
-      }
-      
-      let placeName = '';
-      
-      // Handle Google Maps links
-      if (input.includes('maps.app.goo.gl') || input.includes('goo.gl/maps') || 
-          input.includes('google.com/maps') || input.includes('maps.google.')) {
-          
-        showNotification('Processing Google Maps link... this may take a moment', 'info');
-        
-        // First attempt - try our specialized resolver for maps.app.goo.gl links
-        if (input.includes('maps.app.goo.gl') || input.includes('goo.gl/maps')) {
-          coords = await resolveGoogleMapsShortLink(input);
-        }
-        // For regular Google Maps links, use parseGoogleMapsLink first
-        else {
-          coords = parseGoogleMapsLink(input);
-        }
-        
-        // If coords found, use them
-        if (coords) {
-          setCenter(coords);
-          setInput('');
-          showNotification('Location found from Google Maps link!', 'success');
-          return true;
-        }
-        // If not, try full resolver even for regular links as fallback
-        else if (!input.includes('maps.app.goo.gl') && !input.includes('goo.gl/maps')) {
-          coords = await resolveGoogleMapsShortLink(input);
-          if (coords) {
-            setCenter(coords);
-            setInput('');
-            showNotification('Location found from Google Maps link!', 'success');
-            return true;
-          }
-        }
-        
-        // All Google Maps link resolution methods failed
-        showNotification('Could not extract coordinates from the Maps link. Try entering the place name directly.', 'warning');
-        return false;
-      }
-      // Check if input looks like coordinates directly
-      else if (input.match(/^(-?\d+\.\d+),\s*(-?\d+\.\d+)$/)) {
-        const parts = input.split(',');
+      // Step 1: Check if input contains coordinates directly
+      const coordsMatch = input.match(/^(-?\d+\.\d+),\s*(-?\d+\.\d+)$/);
+      if (coordsMatch) {
+        console.log("Direct coordinates detected");
         coords = {
-          lat: parseFloat(parts[0].trim()),
-          lng: parseFloat(parts[1].trim())
+          lat: parseFloat(coordsMatch[1]),
+          lng: parseFloat(coordsMatch[2])
         };
       } 
-      // If we haven't found coordinates yet, try geocoding the input as a location name
-      if (!coords) {
-        showNotification('Searching for location...', 'info');
+      // Step 2: Check if it's a Google Maps URL
+      else if (input.includes('maps.google.') || 
+               input.includes('google.com/maps') || 
+               input.includes('goo.gl/maps') || 
+               input.includes('maps.app.goo.gl')) {
+        
+        showNotification('Processing map link... this may take a moment', 'info');
+        console.log("Google Maps link detected");
+        
+        // Try our direct extraction method first
+        coords = await extractCoordinatesFromGoogleMapsLink(input);
+        
+        // If direct extraction fails, fall back to other methods
+        if (!coords) {
+          console.log("Direct extraction failed, trying Nominatim");
+          coords = await getPlaceDetails(input);
+          
+          // If all automatic methods fail, offer manual approach
+          if (!coords) {
+            console.log("All automatic methods failed, offering manual option");
+            
+            // Extract any place name we can find
+            const placeName = extractPlaceNameFromUrl(input);
+            
+            if (placeName) {
+              // Create a user-friendly message
+              const message = `Could not extract location from Google Maps link automatically.\n\nWe found a potential place name: "${placeName}"\n\nWould you like to search for this place name instead?`;
+              
+              // Show confirmation with the extracted place name
+              setNotification({
+                show: true,
+                message: message,
+                type: 'warning',
+                isConfirm: true,
+                onConfirm: async () => {
+                  setNotification({ show: false });
+                  setLoading(true);
+                  const nameCoords = await geocodeAddress(placeName);
+                  setLoading(false);
+                  
+                  if (nameCoords) {
+                    setCenter(nameCoords);
+                    setInput('');
+                    showNotification(`Location found for "${placeName}"!`, 'success');
+                  } else {
+                    showNotification(`Could not find location for "${placeName}". Please try entering the address manually.`, 'warning');
+                  }
+                },
+                onCancel: () => {
+                  setNotification({ show: false });
+                }
+              });
+              
+              return false;
+            } else {
+              showNotification('Could not extract location from Google Maps link. Please paste coordinates directly or enter the address manually.', 'warning');
+              return false;
+            }
+          }
+        }
+      }
+      // Step 3: Treat as a regular address/place name
+      else {
+        console.log("Treating as regular address/place name");
         coords = await geocodeAddress(input);
       }
       
+      // Handle results
       if (coords) {
+        console.log("Found coordinates:", coords);
         setCenter(coords);
         setInput('');
         showNotification('Location found!', 'success');
         return true;
       } else {
-        showNotification('Location not found. Try entering a specific address or place name.', 'warning');
+        console.log("No coordinates found");
+        showNotification('Location not found. Please try entering coordinates directly (e.g. "30.123, 31.456").', 'warning');
         return false;
       }
     } catch (error) {
       console.error("Search error:", error);
-      showNotification('Error searching for location. Please try again.', 'error');
+      showNotification('Error searching for location. Please try again or enter coordinates directly.', 'error');
       return false;
     } finally {
       setLoading(false);
@@ -1128,164 +1220,160 @@ function App() {
     }));
   }
 
-  // Helper function to resolve Google Maps short links to coordinates
-  async function resolveGoogleMapsShortLink(shortLink) {
+  // Extract coordinates directly from a Google Maps link
+  async function extractCoordinatesFromGoogleMapsLink(mapLink) {
+    console.log("Attempting to extract coordinates from:", mapLink);
+    
+    // Remove @ prefix if present
+    if (mapLink.startsWith('@')) {
+      mapLink = mapLink.substring(1);
+    }
+    
     try {
-      // Remove @ symbol if it's at the beginning
-      if (shortLink.startsWith('@')) {
-        shortLink = shortLink.substring(1);
+      // First, try direct parsing from URL for obvious patterns
+      
+      // Check for @lat,lng format in the URL
+      const atMatch = mapLink.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+      if (atMatch) {
+        console.log("Found coordinates in @lat,lng format");
+        return {
+          lat: parseFloat(atMatch[1]),
+          lng: parseFloat(atMatch[2])
+        };
       }
       
-      // Show detailed debugging in console
-      console.log("Attempting to resolve Google Maps link:", shortLink);
+      // Try the ll= parameter (latitude,longitude)
+      const llMatch = mapLink.match(/ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
+      if (llMatch) {
+        console.log("Found coordinates in ll= parameter");
+        return {
+          lat: parseFloat(llMatch[1]),
+          lng: parseFloat(llMatch[2])
+        };
+      }
       
-      // Use a proxy to avoid CORS issues
-      const proxyUrl = 'https://api.allorigins.win/get?url=';
-      const encodedUrl = encodeURIComponent(shortLink);
-      const response = await axios.get(`${proxyUrl}${encodedUrl}`);
+      // Try the q= parameter when it contains coordinates
+      const qMatch = mapLink.match(/q=(-?\d+\.\d+),(-?\d+\.\d+)/);
+      if (qMatch) {
+        console.log("Found coordinates in q= parameter");
+        return {
+          lat: parseFloat(qMatch[1]),
+          lng: parseFloat(qMatch[2])
+        };
+      }
       
-      if (response.status === 200 && response.data.contents) {
-        // Extract the HTML content
-        const html = response.data.contents;
-        console.log("Received HTML content length:", html.length);
-        
-        // Method 1: Look for meta tags with coordinates
-        let metaMatch = html.match(/"geo\.position" content="(-?\d+\.\d+);(-?\d+\.\d+)"/);
-        if (metaMatch) {
-          console.log("Found coordinates in meta geo.position:", metaMatch[1], metaMatch[2]);
-          return {
-            lat: parseFloat(metaMatch[1]),
-            lng: parseFloat(metaMatch[2])
-          };
-        }
-        
-        // Method 2: Look for viewport initialization with coordinates
-        let viewportMatch = html.match(/center=(-?\d+\.\d+)%2C(-?\d+\.\d+)&zoom/);
-        if (viewportMatch) {
-          console.log("Found coordinates in viewport:", viewportMatch[1], viewportMatch[2]);
-          return {
-            lat: parseFloat(viewportMatch[1]),
-            lng: parseFloat(viewportMatch[2])
-          };
-        }
-        
-        // Method 3: Look for any @lat,lng pattern
-        let atMatch = html.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
-        if (atMatch) {
-          console.log("Found coordinates in @lat,lng format:", atMatch[1], atMatch[2]);
-          return {
-            lat: parseFloat(atMatch[1]),
-            lng: parseFloat(atMatch[2])
-          };
-        }
-        
-        // Method 4: Look for JSON data with place details - this often has location data for places
-        let jsonDataMatch = html.match(/window\.APP_INITIALIZATION_STATE=([^;]+);/);
-        if (jsonDataMatch) {
-          try {
-            const jsonText = jsonDataMatch[1].replace(/\\"/g, '"');
-            // Look for coordinate patterns in the JSON text
-            const coordMatches = jsonText.match(/\[(-?\d+\.\d+),(-?\d+\.\d+)\]/g);
-            if (coordMatches && coordMatches.length > 0) {
-              // Usually the first set of coordinates is the place location
-              const firstCoord = coordMatches[0].match(/\[(-?\d+\.\d+),(-?\d+\.\d+)\]/);
-              if (firstCoord) {
-                console.log("Found coordinates in JSON data:", firstCoord[1], firstCoord[2]);
-                return {
-                  lat: parseFloat(firstCoord[1]),
-                  lng: parseFloat(firstCoord[2])
-                };
-              }
-            }
-          } catch (e) {
-            console.error("Error parsing JSON data:", e);
+      // If direct URL parsing doesn't work, try using a CORS proxy to access the content
+      console.log("Direct URL parsing failed, trying with CORS proxy");
+      
+      // Use a CORS proxy (find one that works - these are examples)
+      // Try multiple proxies in case some are blocked or rate-limited
+      const proxies = [
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(mapLink)}`,
+        `https://corsproxy.io/?${encodeURIComponent(mapLink)}`,
+        `https://cors-anywhere.herokuapp.com/${mapLink}`
+      ];
+      
+      let html = null;
+      
+      // Try each proxy until one works
+      for (const proxyUrl of proxies) {
+        try {
+          console.log("Trying proxy:", proxyUrl);
+          const response = await fetch(proxyUrl, { timeout: 5000 });
+          if (response.ok) {
+            html = await response.text();
+            console.log("Got response from proxy, length:", html.length);
+            break;
           }
-        }
-        
-        // Method 5: Look for embedded data in script tags - common for place pages
-        const scriptRegex = /<script[^>]*>[\s\S]*?"location"\s*:\s*{\s*"latitude"\s*:\s*(-?\d+\.\d+)\s*,\s*"longitude"\s*:\s*(-?\d+\.\d+)[\s\S]*?<\/script>/;
-        const scriptMatch = html.match(scriptRegex);
-        if (scriptMatch) {
-          console.log("Found coordinates in script tag:", scriptMatch[1], scriptMatch[2]);
-          return {
-            lat: parseFloat(scriptMatch[1]),
-            lng: parseFloat(scriptMatch[2])
-          };
-        }
-        
-        // Method 6: Extract from canonical URL
-        let canonicalMatch = html.match(/<link rel="canonical" href="([^"]+)"/);
-        if (canonicalMatch) {
-          const canonicalUrl = canonicalMatch[1];
-          console.log("Found canonical URL:", canonicalUrl);
-          const coordsFromCanonical = parseGoogleMapsLink(canonicalUrl);
-          if (coordsFromCanonical) {
-            return coordsFromCanonical;
-          }
-        }
-        
-        // Method 7: Extract from any URL in the HTML that contains coordinates
-        const urlsWithCoords = html.match(/https:\/\/www\.google\.com\/maps[^"']+/g);
-        if (urlsWithCoords) {
-          console.log("Found Google Maps URLs:", urlsWithCoords.length);
-          for (const url of urlsWithCoords) {
-            const coordsFromUrl = parseGoogleMapsLink(url);
-            if (coordsFromUrl) {
-              return coordsFromUrl;
-            }
-          }
-        }
-        
-        // Method 8: Look for place ID and perform a follow-up request
-        const placeIdMatch = html.match(/place_id=([^&"']+)/);
-        if (placeIdMatch) {
-          const placeId = placeIdMatch[1];
-          console.log("Found place ID:", placeId);
-          
-          try {
-            // Try to fetch more details using the place ID
-            const placeUrl = `https://www.google.com/maps/place/?q=place_id:${placeId}`;
-            const placeResponse = await axios.get(`${proxyUrl}${encodeURIComponent(placeUrl)}`);
-            
-            if (placeResponse.status === 200 && placeResponse.data.contents) {
-              const placeHtml = placeResponse.data.contents;
-              
-              // Look for coordinates in the place HTML
-              let placeMatch = placeHtml.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
-              if (placeMatch) {
-                console.log("Found coordinates from place ID lookup:", placeMatch[1], placeMatch[2]);
-                return {
-                  lat: parseFloat(placeMatch[1]),
-                  lng: parseFloat(placeMatch[2])
-                };
-              }
-            }
-          } catch (e) {
-            console.error("Error fetching place details:", e);
-          }
-        }
-        
-        // Method 9: As a last resort, try to extract any place name and geocode it
-        const titleMatch = html.match(/<title>([^<]+)<\/title>/);
-        if (titleMatch) {
-          const title = titleMatch[1].replace(' - Google Maps', '').trim();
-          if (title && !title.toLowerCase().includes('google maps')) {
-            console.log("Trying to geocode place name from title:", title);
-            try {
-              return await geocodeAddress(title);
-            } catch (e) {
-              console.error("Error geocoding title:", e);
-            }
-          }
+        } catch (e) {
+          console.error("Proxy attempt failed:", e);
+          continue;
         }
       }
       
-      console.log("Failed to extract coordinates from Google Maps link");
+      if (!html) {
+        console.error("All proxies failed");
+        return null;
+      }
+      
+      // Once we have the HTML, search for coordinates in common patterns
+      
+      // Look for initialize map with coordinates
+      const initMatch = html.match(/initialize\([^)]*(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
+      if (initMatch) {
+        console.log("Found coordinates in initialize function");
+        return {
+          lat: parseFloat(initMatch[1]),
+          lng: parseFloat(initMatch[2])
+        };
+      }
+      
+      // Look for viewport center pattern
+      const viewportMatch = html.match(/center=(-?\d+\.\d+)%2C(-?\d+\.\d+)/);
+      if (viewportMatch) {
+        console.log("Found coordinates in viewport center");
+        return {
+          lat: parseFloat(viewportMatch[1]),
+          lng: parseFloat(viewportMatch[2])
+        };
+      }
+      
+      // Look for any @lat,lng pattern in the HTML
+      const htmlAtMatch = html.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+      if (htmlAtMatch) {
+        console.log("Found coordinates in @lat,lng format in HTML");
+        return {
+          lat: parseFloat(htmlAtMatch[1]),
+          lng: parseFloat(htmlAtMatch[2])
+        };
+      }
+      
+      // Look for JSON data with coordinates
+      const jsonMatches = html.match(/\[(-?\d+\.\d+),(-?\d+\.\d+)\]/g);
+      if (jsonMatches && jsonMatches.length > 0) {
+        // Parse the first match as it's likely to be the main coordinates
+        const match = jsonMatches[0].match(/\[(-?\d+\.\d+),(-?\d+\.\d+)\]/);
+        if (match) {
+          console.log("Found coordinates in JSON data");
+          return {
+            lat: parseFloat(match[1]),
+            lng: parseFloat(match[2])
+          };
+        }
+      }
+      
+      console.log("Could not extract coordinates from the HTML content");
       return null;
     } catch (error) {
-      console.error("Error resolving short link:", error);
+      console.error("Error extracting coordinates:", error);
       return null;
     }
+  }
+
+  // Helper function to extract a meaningful place name from Google Maps URL
+  function extractPlaceNameFromUrl(url) {
+    // Try to extract place name from URL formats like /place/PlaceName/
+    const placeMatch = url.match(/\/place\/([^\/]+)/);
+    if (placeMatch && placeMatch[1]) {
+      return decodeURIComponent(placeMatch[1].replace(/\+/g, ' ')).replace(/-/g, ' ');
+    }
+    
+    // Try to extract location name from the URL path
+    const pathParts = url.split('/');
+    for (let i = 0; i < pathParts.length; i++) {
+      const part = pathParts[i];
+      // Skip common URL parts and very short segments
+      if (part && 
+          !part.includes('.') && 
+          !part.includes('maps') && 
+          !part.includes('http') && 
+          !part.includes('goo.gl') && 
+          part.length > 3) {
+        return decodeURIComponent(part.replace(/\+/g, ' ')).replace(/-/g, ' ');
+      }
+    }
+    
+    return null;
   }
 
   if (loading) {
