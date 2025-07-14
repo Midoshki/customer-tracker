@@ -232,7 +232,7 @@ function App() {
   const lastScrollY = useRef(window.scrollY);
 
   // Offline customer management
-  const { customers, isOnline, customerService, loading, refreshCustomers } = useOfflineCustomers();
+  const { customers, isOnline, customerService, loading, refreshCustomers } = useOfflineCustomers(user);
   
   // Authentication loading state
   const [authLoading, setAuthLoading] = useState(false);
@@ -592,7 +592,21 @@ function App() {
 
   // Check authentication on load
   useEffect(() => {
-    checkUser();
+    // Only check user if we don't already have one
+    // The auth state listener will handle all auth changes
+    const initAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user && !user) {
+          setUser(session.user);
+          await checkIfAdmin(session.user.id);
+        }
+      } catch (error) {
+        console.error('Error checking initial auth:', error);
+      }
+    };
+    
+    initAuth();
     
     // Close profile menu when clicking outside
     const handleClickOutside = (event) => {
@@ -615,13 +629,16 @@ function App() {
     
     document.addEventListener('mousedown', handleClickOutside);
     
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
         setUser(session.user);
         checkIfAdmin(session.user.id);
       } else {
+        // User is logged out
         setUser(null);
         setIsAdmin(false);
+        setShowProfileMenu(false);
+        setShowActionsMenu({});
       }
     });
 
@@ -631,17 +648,7 @@ function App() {
       };
         }, [showProfileMenu, showActionsMenu, showMapSuggestions, showAddMapSuggestions]);
 
-  const checkUser = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        setUser(session.user);
-        await checkIfAdmin(session.user.id);
-      }
-    } catch (error) {
-      console.error('Error checking user:', error);
-    }
-  };
+
 
   const checkIfAdmin = async (userId) => {
     try {
@@ -696,32 +703,22 @@ function App() {
   };
 
   const handleLogout = async () => {
+    // Immediately close menus to prevent UI issues
+    setShowProfileMenu(false);
+    setShowActionsMenu({});
+    
     try {
-      // Clear local state first
-      setUser(null);
-      setIsAdmin(false);
-      setShowProfileMenu(false);
+      // Simple logout - let Supabase handle the session cleanup
+      await supabase.auth.signOut();
       
-      // Clear Supabase auth tokens from local storage
-      localStorage.removeItem('supabase.auth.token');
-      sessionStorage.removeItem('supabase.auth.token');
+      // Clear local data
+      localStorage.removeItem('customers');
       
-      // Sign out from Supabase
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.error('Logout error:', error);
-        // Force logout even if Supabase fails
-      }
-      
-      // Force page reload to clear any persistent state
-      window.location.reload();
     } catch (error) {
-      console.error('Error during logout:', error);
-      // Force logout even if there's an error
+      console.error('Logout error:', error);
+      // If logout fails, force clear state
       setUser(null);
       setIsAdmin(false);
-      setShowProfileMenu(false);
-      window.location.reload();
     }
   };
 

@@ -4,7 +4,7 @@ import CustomerService from '../services/CustomerService';
 import { supabase } from '../supabase';
 
 // Usage in main component
-const useOfflineCustomers = () => {
+const useOfflineCustomers = (user) => {
   const isOnline = useOnlineStatus();
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -18,9 +18,15 @@ const useOfflineCustomers = () => {
   const refreshCustomers = useCallback(async () => {
     setLoading(true);
     try {
+      // If no user, clear customers
+      if (!user) {
+        setCustomers([]);
+        return;
+      }
+      
       // Get user info for filtering
       const { data: { session } } = await supabase.auth.getSession();
-      const userId = session?.user?.id;
+      const userId = session?.user?.id || user?.id;
       
       // Check if user is admin
       let isAdmin = false;
@@ -41,17 +47,21 @@ const useOfflineCustomers = () => {
       setCustomers(customerData);
     } catch (error) {
       console.error('Error loading customers:', error);
-      // Fallback to local data
-      const localCustomers = customerServiceRef.current.offlineManager.getLocal('customers') || [];
-      setCustomers(localCustomers);
+      // Fallback to local data only if user is logged in
+      if (user) {
+        const localCustomers = customerServiceRef.current.offlineManager.getLocal('customers') || [];
+        setCustomers(localCustomers);
+      } else {
+        setCustomers([]);
+      }
     } finally {
       setLoading(false);
     }
-  }, [isOnline]);
+  }, [isOnline, user]);
 
   useEffect(() => {
     refreshCustomers();
-  }, [isOnline, refreshCustomers]);
+  }, [isOnline, refreshCustomers, user]);
 
   // Sync when coming back online
   useEffect(() => {

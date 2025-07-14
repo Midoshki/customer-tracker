@@ -184,17 +184,38 @@ class CustomerService {
   async fetchCustomers(isOnline, userId, isAdmin) {
     if (isOnline) {
       try {
-        // The foreign key links customers.created_by to auth.users(id), and user_profiles.id to auth.users(id)
-        // We need to join through the created_by field to get the creator's name
-        const { data, error } = await this.supabase
+        // First get all customers
+        const { data: customers, error } = await this.supabase
           .from('customers')
-          .select(`
-            *,
-            user_profiles!created_by(name)
-          `)
+          .select('*')
           .order('created_at', { ascending: false });
         
         if (error) throw error;
+        
+        // Get all unique creator IDs
+        const creatorIds = [...new Set(customers.map(c => c.created_by).filter(Boolean))];
+        
+        // Get user profiles for all creators
+        const { data: profiles, error: profileError } = await this.supabase
+          .from('user_profiles')
+          .select('id, name')
+          .in('id', creatorIds);
+        
+        if (profileError) console.warn('Could not fetch user profiles:', profileError);
+        
+        // Create a map of user_id -> profile
+        const profileMap = (profiles || []).reduce((map, profile) => {
+          map[profile.id] = profile;
+          return map;
+        }, {});
+        
+        // Attach profile data to customers
+        const data = customers.map(customer => ({
+          ...customer,
+          user_profiles: customer.created_by && profileMap[customer.created_by] 
+            ? [profileMap[customer.created_by]]
+            : []
+                 }));
         
         // Normalize the data format to match local storage format
         const normalizedData = (data || []).map(customer => ({
@@ -221,21 +242,37 @@ class CustomerService {
     
     // Refresh local data from server
     try {
-      const { data, error } = await this.supabase
+      // First get all customers
+      const { data: customers, error } = await this.supabase
         .from('customers')
-        .select(`
-          *,
-          user_profiles!created_by(name)
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
       
-      if (!error) {
-        // Normalize the data format to match local storage format
-        const normalizedData = (data || []).map(customer => ({
+      if (!error && customers) {
+        // Get all unique creator IDs
+        const creatorIds = [...new Set(customers.map(c => c.created_by).filter(Boolean))];
+        
+        // Get user profiles for all creators
+        const { data: profiles } = await this.supabase
+          .from('user_profiles')
+          .select('id, name')
+          .in('id', creatorIds);
+        
+        // Create a map of user_id -> profile
+        const profileMap = (profiles || []).reduce((map, profile) => {
+          map[profile.id] = profile;
+          return map;
+        }, {});
+        
+        // Attach profile data to customers
+        const data = customers.map(customer => ({
           ...customer,
-          user_profiles: customer.user_profiles ? [customer.user_profiles] : []
+          user_profiles: customer.created_by && profileMap[customer.created_by] 
+            ? [profileMap[customer.created_by]]
+            : []
         }));
-        this.offlineManager.storeLocally('customers', normalizedData);
+        
+        this.offlineManager.storeLocally('customers', data);
       }
     } catch (error) {
       console.error('Failed to sync with server:', error);
