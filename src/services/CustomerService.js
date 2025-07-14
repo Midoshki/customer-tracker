@@ -5,11 +5,17 @@ class CustomerService {
   }
 
   async createCustomer(customerData) {
-    // First, create the customer without trying to join user_profiles
+    // Create the customer with join to get user profile
     const { data, error } = await this.supabase
       .from('customers')
       .insert(customerData)
-      .select('*')
+      .select(`
+        *,
+        user_profiles!created_by (
+          id,
+          name
+        )
+      `)
       .single();
     
     if (error) {
@@ -17,67 +23,27 @@ class CustomerService {
       throw new Error(`Failed to create customer: ${error.message}`);
     }
     
-    // Then, fetch the user profile separately if created_by exists
-    if (data && data.created_by) {
-      try {
-        const { data: profile, error: profileError } = await this.supabase
-          .from('user_profiles')
-          .select('id, name')
-          .eq('id', data.created_by)
-          .single();
-        
-        if (!profileError && profile) {
-          data.user_profiles = profile;
-        } else {
-          // If no profile found, set a placeholder to avoid "Unknown"
-          data.user_profiles = { id: data.created_by, name: 'User' };
-          console.error('User profile not found for user:', data.created_by);
-        }
-      } catch (profileError) {
-        console.error('Could not fetch user profile:', profileError);
-        // Set placeholder to avoid "Unknown"
-        data.user_profiles = { id: data.created_by, name: 'User' };
-      }
-    }
-    
     return data;
   }
 
   async updateCustomer(customerId, customerData) {
-    // First, update the customer without trying to join user_profiles
+    // Update the customer with join to get user profile
     const { data, error } = await this.supabase
       .from('customers')
       .update(customerData)
       .eq('id', customerId)
-      .select('*')
+      .select(`
+        *,
+        user_profiles!created_by (
+          id,
+          name
+        )
+      `)
       .single();
     
     if (error) {
       console.error('Database error:', error);
       throw new Error(`Failed to update customer: ${error.message}`);
-    }
-    
-    // Then, fetch the user profile separately if created_by exists
-    if (data && data.created_by) {
-      try {
-        const { data: profile, error: profileError } = await this.supabase
-          .from('user_profiles')
-          .select('id, name')
-          .eq('id', data.created_by)
-          .single();
-        
-        if (!profileError && profile) {
-          data.user_profiles = profile;
-        } else {
-          // If no profile found, set a placeholder to avoid "Unknown"
-          data.user_profiles = { id: data.created_by, name: 'User' };
-          console.error('User profile not found for user:', data.created_by);
-        }
-      } catch (profileError) {
-        console.error('Could not fetch user profile:', profileError);
-        // Set placeholder to avoid "Unknown"
-        data.user_profiles = { id: data.created_by, name: 'User' };
-      }
     }
     
     return data;
@@ -98,13 +64,20 @@ class CustomerService {
   }
 
   async fetchCustomers() {
-    // First, fetch all customers - ensure we get ALL customers regardless of user
+    // Try to fetch all customers - RLS policies might be restricting this
     const { data: customers, error } = await this.supabase
       .from('customers')
-      .select('*')
+      .select(`
+        *,
+        user_profiles!created_by (
+          id,
+          name
+        )
+      `)
       .order('created_at', { ascending: false });
     
     console.log('Raw customers from database:', customers?.length || 0, 'customers');
+    console.log('Sample customer data:', customers?.[0]);
     
     if (error) {
       console.error('Database error:', error);
@@ -115,44 +88,7 @@ class CustomerService {
       return [];
     }
     
-    // Get unique user IDs for batch fetching profiles
-    const userIds = [...new Set(customers.map(c => c.created_by).filter(Boolean))];
-    console.log('Customer created_by IDs:', userIds);
-    
-    if (userIds.length > 0) {
-      try {
-        const { data: profiles, error: profileError } = await this.supabase
-          .from('user_profiles')
-          .select('id, name')
-          .in('id', userIds);
-        
-        if (!profileError && profiles) {
-          console.log('Fetched profiles:', profiles);
-          // Create a map for faster lookup
-          const profileMap = profiles.reduce((map, profile) => {
-            map[profile.id] = profile;
-            return map;
-          }, {});
-          
-          // Attach user profiles to customers
-          customers.forEach(customer => {
-            if (customer.created_by && profileMap[customer.created_by]) {
-              customer.user_profiles = profileMap[customer.created_by];
-            } else if (customer.created_by) {
-              // If no profile found, log the missing user ID and set a placeholder
-              console.warn('No profile found for user ID:', customer.created_by);
-              customer.user_profiles = { id: customer.created_by, name: 'Unknown User' };
-            }
-          });
-        } else {
-          console.error('Error fetching user profiles:', profileError);
-        }
-      } catch (profileError) {
-        console.error('Could not fetch user profiles:', profileError);
-        // Don't fail the customer fetch if profile fetch fails
-      }
-    }
-    
+    // With the join query, user_profiles should already be attached
     console.log('Fetched customers with profiles:', customers?.slice(0, 2));
     return customers;
   }
