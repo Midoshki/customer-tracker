@@ -855,7 +855,7 @@ function App() {
       border: '1px solid #3a3a3a'
     },
     authLogo: {
-      height: '96px',
+      height: '120px',
       width: 'auto',
       margin: '0 auto 1.5rem auto',
       display: 'block'
