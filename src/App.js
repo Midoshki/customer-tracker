@@ -154,6 +154,12 @@ function App() {
   const [filterRadius, setFilterRadius] = useState(''); // in km
   const [filterCenter, setFilterCenter] = useState(null); // { lat, lng }
 
+  // Map search state
+  const [mapSearch, setMapSearch] = useState('');
+  const [mapSearchLoading, setMapSearchLoading] = useState(false);
+  const [addMapSearch, setAddMapSearch] = useState('');
+  const [addMapSearchLoading, setAddMapSearchLoading] = useState(false);
+
   // Helper: get unique creators for filter dropdown
   const uniqueCreators = Array.from(new Set(customers.map(c => c.user_profiles?.name || 'Unknown')));
 
