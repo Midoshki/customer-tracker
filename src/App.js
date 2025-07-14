@@ -170,6 +170,12 @@ function App() {
   const [addMapSearch, setAddMapSearch] = useState('');
   const [addMapSearchLoading, setAddMapSearchLoading] = useState(false);
 
+  // Add state for suggestions
+  const [mapSuggestions, setMapSuggestions] = useState([]);
+  const [addMapSuggestions, setAddMapSuggestions] = useState([]);
+  const [showMapSuggestions, setShowMapSuggestions] = useState(false);
+  const [showAddMapSuggestions, setShowAddMapSuggestions] = useState(false);
+
   // Helper: get unique creators for filter dropdown
   const uniqueCreators = Array.from(new Set(customers.map(c => c.user_profiles?.name || 'Unknown')));
 
@@ -995,9 +1001,10 @@ function App() {
     let coords = null;
     let input = search.trim();
     if (input.includes('maps.app.goo.gl')) {
-      // Expand short link
-      const expanded = await expandShortLink(input);
-      coords = parseGoogleMapsLink(expanded);
+      try {
+        const expanded = await expandShortLink(input);
+        coords = parseGoogleMapsLink(expanded);
+      } catch {}
     } else {
       coords = parseGoogleMapsLink(input);
     }
@@ -1011,6 +1018,18 @@ function App() {
       showNotification('Location not found. Try a different address or link.', 'warning');
     }
     setLoading(false);
+  }
+
+  // Fetch suggestions from Nominatim
+  async function fetchSuggestions(query) {
+    if (!query) return [];
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5`;
+    const res = await axios.get(url);
+    return res.data.map(item => ({
+      display: item.display_name,
+      lat: parseFloat(item.lat),
+      lng: parseFloat(item.lon)
+    }));
   }
 
   if (loading) {
@@ -1303,7 +1322,7 @@ function App() {
           </div>
         )}
 
-        {showFilters && (
+        {(currentView === 'list' || currentView === 'map') && showFilters && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', marginBottom: '1rem', alignItems: 'center', background: '#232323', borderRadius: '8px', padding: '1rem' }}>
             <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={styles.input}>
               <option value=''>All Statuses</option>
@@ -1655,8 +1674,20 @@ function App() {
                 type="text"
                 placeholder="Search address or paste Google Maps link..."
                 value={mapSearch}
-                onChange={e => setMapSearch(e.target.value)}
+                onChange={async e => {
+                  setMapSearch(e.target.value);
+                  if (e.target.value && !e.target.value.includes('maps.app.goo.gl')) {
+                    const suggestions = await fetchSuggestions(e.target.value);
+                    setMapSuggestions(suggestions);
+                    setShowMapSuggestions(true);
+                  } else {
+                    setMapSuggestions([]);
+                    setShowMapSuggestions(false);
+                  }
+                }}
                 style={{ ...styles.input, flex: 1 }}
+                onFocus={() => setShowMapSuggestions(mapSuggestions.length > 0)}
+                onBlur={() => setTimeout(() => setShowMapSuggestions(false), 200)}
               />
               <button
                 style={styles.secondaryButton}
@@ -1668,6 +1699,23 @@ function App() {
                 {mapSearchLoading ? 'Searching...' : 'Go'}
               </button>
             </div>
+            {showMapSuggestions && mapSuggestions.length > 0 && (
+              <div style={{ position: 'absolute', background: '#232323', zIndex: 1002, width: '100%', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
+                {mapSuggestions.map((s, i) => (
+                  <div
+                    key={i}
+                    style={{ padding: '0.75rem', cursor: 'pointer', color: '#e2e8f0', borderBottom: i < mapSuggestions.length-1 ? '1px solid #3a3a3a' : 'none' }}
+                    onMouseDown={() => {
+                      setFilterCenter({ lat: s.lat, lng: s.lng });
+                      setMapSearch(s.display);
+                      setShowMapSuggestions(false);
+                    }}
+                  >
+                    {s.display}
+                  </div>
+                ))}
+              </div>
+            )}
             <div style={{ height: '70vh', borderRadius: '0.5rem', overflow: 'hidden', border: '1px solid #475569', position: 'relative', zIndex: 1 }}>
               <MapContainer
                 className="custom-leaflet-map"
@@ -1927,6 +1975,105 @@ function App() {
                 )}
               </div>
               
+              <div style={styles.formGroup}>
+                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', alignItems: 'center' }}>
+                  <input
+                    type="text"
+                    placeholder="Search address or paste Google Maps link..."
+                    value={addMapSearch}
+                    onChange={async e => {
+                      setAddMapSearch(e.target.value);
+                      if (e.target.value && !e.target.value.includes('maps.app.goo.gl')) {
+                        const suggestions = await fetchSuggestions(e.target.value);
+                        setAddMapSuggestions(suggestions);
+                        setShowAddMapSuggestions(true);
+                      } else {
+                        setAddMapSuggestions([]);
+                        setShowAddMapSuggestions(false);
+                      }
+                    }}
+                    style={{ ...styles.input, flex: 1 }}
+                    onFocus={() => setShowAddMapSuggestions(addMapSuggestions.length > 0)}
+                    onBlur={() => setTimeout(() => setShowAddMapSuggestions(false), 200)}
+                  />
+                  <button
+                    type="button"
+                    style={styles.secondaryButton}
+                    disabled={addMapSearchLoading || !addMapSearch}
+                    onClick={async () => {
+                      await handleMapSearch(addMapSearch, setAddMapSearchLoading, setAddMapSearch, setTempMarker, showNotification);
+                    }}
+                  >
+                    {addMapSearchLoading ? 'Searching...' : 'Go'}
+                  </button>
+                </div>
+                <div style={styles.mapContainer}>
+                  <MapContainer
+                    center={tempMarker ? [tempMarker.lat, tempMarker.lng] : 
+                           currentLocation ? [currentLocation.lat, currentLocation.lng] : 
+                           [30.0444, 31.2357]}
+                    zoom={tempMarker ? 15 : currentLocation ? 12 : 8}
+                    style={{ height: '100%', width: '100%' }}
+                  >
+                    <TileLayer
+                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    />
+                    
+                    {currentLocation && (
+                      <Marker
+                        position={[currentLocation.lat, currentLocation.lng]}
+                        icon={currentLocationIcon}
+                      >
+                        <Popup>
+                          <div style={{ textAlign: 'center' }}>
+                            <p style={{ margin: '0 0 10px 0', fontWeight: '500', color: '#10b981' }}>📍 Your Current Location</p>
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setTempMarker(currentLocation);
+                              }}
+                              style={{ ...styles.primaryButton, padding: '0.5rem 1rem', fontSize: '0.75rem' }}
+                            >
+                              Use This Location
+                            </button>
+                          </div>
+                        </Popup>
+                      </Marker>
+                    )}
+                    
+                    {customers
+                      .filter(c => !editingCustomer || c.id !== editingCustomer.id)
+                      .map(customer => (
+                        <Marker
+                          key={`existing-${customer.id}`}
+                          position={[customer.latitude, customer.longitude]}
+                          icon={existingIcon}
+                        >
+                          <Popup>
+                            <div style={{ minWidth: '150px', textAlign: 'center' }}>
+                              <h4 style={{ margin: '0 0 10px 0', fontSize: '0.875rem', fontWeight: '600', color: '#64748b' }}>
+                                {customer.name}
+                              </h4>
+                              <p style={{ margin: '0', fontSize: '0.75rem', color: '#9ca3af' }}>
+                                Existing customer
+                              </p>
+                            </div>
+                          </Popup>
+                        </Marker>
+                      ))}
+                    
+                    <MapClickHandler onMapClick={handleMapClick} tempMarker={tempMarker} />
+                  </MapContainer>
+                </div>
+                {tempMarker && (
+                  <div style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: '#94a3b8' }}>
+                    Selected coordinates: {tempMarker.lat.toFixed(6)}, {tempMarker.lng.toFixed(6)}
+                  </div>
+                )}
+              </div>
+              
               <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                 <button
                   type="button"
@@ -2022,6 +2169,23 @@ function App() {
               </button>
             )}
           </div>
+        </div>
+      )}
+      {showAddMapSuggestions && addMapSuggestions.length > 0 && (
+        <div style={{ position: 'absolute', background: '#232323', zIndex: 1002, width: '100%', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
+          {addMapSuggestions.map((s, i) => (
+            <div
+              key={i}
+              style={{ padding: '0.75rem', cursor: 'pointer', color: '#e2e8f0', borderBottom: i < addMapSuggestions.length-1 ? '1px solid #3a3a3a' : 'none' }}
+              onMouseDown={() => {
+                setTempMarker({ lat: s.lat, lng: s.lng });
+                setAddMapSearch(s.display);
+                setShowAddMapSuggestions(false);
+              }}
+            >
+              {s.display}
+            </div>
+          ))}
         </div>
       )}
     </div>
