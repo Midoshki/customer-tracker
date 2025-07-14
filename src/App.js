@@ -8,6 +8,26 @@ import useOfflineCustomers from './hooks/useOfflineCustomers';
 import OfflineIndicator from './components/OfflineIndicator';
 import axios from 'axios';
 
+// Add CSS for Leaflet controls z-index fix
+const leafletControlsStyle = `
+  .leaflet-control-container {
+    z-index: 100 !important;
+  }
+  .leaflet-control-zoom {
+    z-index: 100 !important;
+  }
+  .leaflet-control-attribution {
+    z-index: 100 !important;
+  }
+`;
+
+// Inject CSS
+if (typeof document !== 'undefined') {
+  const style = document.createElement('style');
+  style.textContent = leafletControlsStyle;
+  document.head.appendChild(style);
+}
+
 // Fix default markers
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -175,6 +195,10 @@ function App() {
   const [addMapSuggestions, setAddMapSuggestions] = useState([]);
   const [showMapSuggestions, setShowMapSuggestions] = useState(false);
   const [showAddMapSuggestions, setShowAddMapSuggestions] = useState(false);
+
+  // Map refs for auto-zoom
+  const mapRef = useRef(null);
+  const addMapRef = useRef(null);
 
   // Helper: get creator name from customer object
   const getCreatorName = (customer) => {
@@ -363,6 +387,14 @@ function App() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, [isMobile]);
 
+  // Helper function to zoom map to location
+  const zoomToLocation = (location, mapRefToUse = null) => {
+    const targetMap = mapRefToUse || (currentView === 'add' ? addMapRef : mapRef);
+    if (targetMap.current && location) {
+      targetMap.current.setView([location.lat, location.lng], 15);
+    }
+  };
+
   // Get current location ONLY when user explicitly requests it - completely isolated
   const requestUserLocation = () => {
     if (!navigator.geolocation) {
@@ -382,6 +414,10 @@ function App() {
           lng: position.coords.longitude
         };
         setCurrentLocation(location);
+        
+        // Auto-zoom to user location
+        zoomToLocation(location);
+        
         setNotification({
           show: true,
           message: 'Location found successfully!',
@@ -982,12 +1018,14 @@ function App() {
       textTransform: 'uppercase'
     },
     mapContainer: {
-      height: '400px',
+      height: isMobile ? '300px' : '400px',
       width: '100%',
       borderRadius: '0.5rem',
       overflow: 'hidden',
       marginBottom: '1rem',
-      border: '1px solid #475569'
+      border: '1px solid #475569',
+      position: 'relative',
+      zIndex: 1
     },
     grid: {
       display: 'grid',
@@ -1075,9 +1113,9 @@ function App() {
     },
     formGrid: {
       display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-      gap: '1rem',
-      marginBottom: '1.5rem'
+      gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(250px, 1fr))',
+      gap: isMobile ? '0.75rem' : '1rem',
+      marginBottom: isMobile ? '1rem' : '1.5rem'
     },
     locationButton: {
       background: 'linear-gradient(135deg, #4a4a4a 0%, #3a3a3a 100%)',
@@ -1295,6 +1333,10 @@ function App() {
         console.log("Found coordinates:", coords);
         setCenter(coords);
         setInput('');
+        
+        // Auto-zoom to found location
+        zoomToLocation(coords);
+        
         showNotification('Location found!', 'success');
         return true;
       } else {
@@ -2326,6 +2368,7 @@ function App() {
                 center={currentLocation ? [currentLocation.lat, currentLocation.lng] : [30.0444, 31.2357]}
                 zoom={currentLocation ? 12 : 8}
                 style={{ height: '100%', width: '100%' }}
+                ref={mapRef}
               >
                 <TileLayer
                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -2416,87 +2459,213 @@ function App() {
         )}
 
         {currentView === 'add' && (
-          <div style={styles.card}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#e2e8f0', marginBottom: '1.5rem' }}>
+          <div style={{
+            ...styles.card,
+            padding: isMobile ? '1rem' : '1.5rem',
+            margin: isMobile ? '0.5rem' : '0 auto',
+            maxWidth: isMobile ? 'none' : '800px'
+          }}>
+            <h2 style={{ 
+              fontSize: isMobile ? '1.125rem' : '1.25rem', 
+              fontWeight: '600', 
+              color: '#e2e8f0', 
+              marginBottom: isMobile ? '1rem' : '1.5rem',
+              textAlign: isMobile ? 'center' : 'left'
+            }}>
               {editingCustomer ? 'Edit Customer' : 'Add New Customer'}
             </h2>
             
             <form onSubmit={handleSubmit}>
-              <div style={styles.formGrid}>
+              {/* Basic Info Section */}
+              {isMobile && (
+                <div style={{ 
+                  marginBottom: '1rem', 
+                  padding: '0.75rem', 
+                  backgroundColor: '#232323', 
+                  borderRadius: '8px',
+                  border: '1px solid #3a3a3a'
+                }}>
+                  <h3 style={{ 
+                    fontSize: '0.875rem', 
+                    fontWeight: '600', 
+                    color: '#e67e22', 
+                    margin: '0 0 0.75rem 0',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px'
+                  }}>
+                    Basic Information
+                  </h3>
+                  
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Name *</label>
+                    <input
+                      type="text"
+                      style={styles.input}
+                      value={formData.name}
+                      onChange={(e) => setFormData({...formData, name: e.target.value})}
+                      required
+                      placeholder="Enter customer name"
+                    />
+                  </div>
+                  
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Phone *</label>
+                    <input
+                      type="tel"
+                      style={styles.input}
+                      value={formData.phone}
+                      onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                      required
+                      placeholder="Enter phone number"
+                    />
+                  </div>
+                  
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Email</label>
+                    <input
+                      type="email"
+                      style={styles.input}
+                      value={formData.email}
+                      onChange={(e) => setFormData({...formData, email: e.target.value})}
+                      placeholder="Enter email address"
+                    />
+                  </div>
+                  
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Status</label>
+                    <select
+                      style={styles.select}
+                      value={formData.status}
+                      onChange={(e) => setFormData({...formData, status: e.target.value})}
+                    >
+                      <option value="lead">Lead</option>
+                      <option value="prospect">Prospect</option>
+                      <option value="customer">Customer</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </div>
+                  
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Notes</label>
+                    <textarea
+                      style={{ ...styles.input, minHeight: '60px', resize: 'vertical' }}
+                      value={formData.notes}
+                      onChange={e => setFormData({ ...formData, notes: e.target.value })}
+                      placeholder="Enter any notes about this customer"
+                    />
+                  </div>
+                </div>
+              )}
+              
+              {/* Desktop layout */}
+              {!isMobile && (
+                <>
+                  <div style={styles.formGrid}>
+                    <div style={styles.formGroup}>
+                      <label style={styles.label}>Name *</label>
+                      <input
+                        type="text"
+                        style={styles.input}
+                        value={formData.name}
+                        onChange={(e) => setFormData({...formData, name: e.target.value})}
+                        required
+                        placeholder="Enter customer name"
+                      />
+                    </div>
+                    
+                    <div style={styles.formGroup}>
+                      <label style={styles.label}>Email</label>
+                      <input
+                        type="email"
+                        style={styles.input}
+                        value={formData.email}
+                        onChange={(e) => setFormData({...formData, email: e.target.value})}
+                        placeholder="Enter email address"
+                      />
+                    </div>
+                    
+                    <div style={styles.formGroup}>
+                      <label style={styles.label}>Phone *</label>
+                      <input
+                        type="tel"
+                        style={styles.input}
+                        value={formData.phone}
+                        onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                        required
+                        placeholder="Enter phone number"
+                      />
+                    </div>
+                    
+                    <div style={styles.formGroup}>
+                      <label style={styles.label}>Status</label>
+                      <select
+                        style={styles.select}
+                        value={formData.status}
+                        onChange={(e) => setFormData({...formData, status: e.target.value})}
+                      >
+                        <option value="lead">Lead</option>
+                        <option value="prospect">Prospect</option>
+                        <option value="customer">Customer</option>
+                        <option value="inactive">Inactive</option>
+                      </select>
+                    </div>
+                  </div>
+                  
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Notes</label>
+                    <textarea
+                      style={{ ...styles.input, minHeight: '60px', resize: 'vertical' }}
+                      value={formData.notes}
+                      onChange={e => setFormData({ ...formData, notes: e.target.value })}
+                      placeholder="Enter any notes about this customer"
+                    />
+                  </div>
+                </>
+              )}
+              
+              {/* Address Section */}
+              <div style={{ 
+                marginBottom: '1rem', 
+                padding: isMobile ? '0.75rem' : '1rem', 
+                backgroundColor: isMobile ? '#232323' : 'transparent', 
+                borderRadius: isMobile ? '8px' : 'none',
+                border: isMobile ? '1px solid #3a3a3a' : 'none'
+              }}>
+                {isMobile && (
+                  <h3 style={{ 
+                    fontSize: '0.875rem', 
+                    fontWeight: '600', 
+                    color: '#e67e22', 
+                    margin: '0 0 0.75rem 0',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px'
+                  }}>
+                    Address & Location
+                  </h3>
+                )}
+                
                 <div style={styles.formGroup}>
-                  <label style={styles.label}>Name *</label>
+                  <label style={styles.label}>Address *</label>
                   <input
                     type="text"
                     style={styles.input}
-                    value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    value={formData.address}
+                    onChange={(e) => setFormData({...formData, address: e.target.value})}
                     required
-                    placeholder="Enter customer name"
+                    placeholder="Enter full address"
                   />
-                </div>
-                
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>Email</label>
-                  <input
-                    type="email"
-                    style={styles.input}
-                    value={formData.email}
-                    onChange={(e) => setFormData({...formData, email: e.target.value})}
-                    placeholder="Enter email address"
-                  />
-                </div>
-                
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>Phone *</label>
-                  <input
-                    type="tel"
-                    style={styles.input}
-                    value={formData.phone}
-                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                    required
-                    placeholder="Enter phone number"
-                  />
-                </div>
-                
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>Status</label>
-                  <select
-                    style={styles.select}
-                    value={formData.status}
-                    onChange={(e) => setFormData({...formData, status: e.target.value})}
-                  >
-                    <option value="lead">Lead</option>
-                    <option value="prospect">Prospect</option>
-                    <option value="customer">Customer</option>
-                    <option value="inactive">Inactive</option>
-                  </select>
                 </div>
               </div>
               
               <div style={styles.formGroup}>
-                <label style={styles.label}>Notes</label>
-                <textarea
-                  style={{ ...styles.input, minHeight: '60px', resize: 'vertical' }}
-                  value={formData.notes}
-                  onChange={e => setFormData({ ...formData, notes: e.target.value })}
-                  placeholder="Enter any notes about this customer"
-                />
-              </div>
-              
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Address *</label>
-                <input
-                  type="text"
-                  style={styles.input}
-                  value={formData.address}
-                  onChange={(e) => setFormData({...formData, address: e.target.value})}
-                  required
-                  placeholder="Enter full address"
-                />
-              </div>
-              
-              <div style={styles.formGroup}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                <div style={{ 
+                  display: 'flex', 
+                  flexDirection: isMobile ? 'column' : 'row',
+                  justifyContent: 'space-between', 
+                  alignItems: isMobile ? 'flex-start' : 'center', 
+                  marginBottom: '0.5rem',
+                  gap: isMobile ? '0.5rem' : '0'
+                }}>
                   <label style={styles.label}>
                     Location * {tempMarker ? '✅ Location selected' : '📍 Click on map to select location'}
                   </label>
@@ -2508,9 +2677,13 @@ function App() {
                         e.stopPropagation();
                         requestUserLocation();
                       }}
-                      style={styles.locationButton}
+                      style={{
+                        ...styles.locationButton,
+                        fontSize: isMobile ? '0.875rem' : '0.875rem',
+                        padding: isMobile ? '0.5rem 0.75rem' : '0.5rem 1rem'
+                      }}
                     >
-                      📍 Get My Location
+                      📍 {isMobile ? 'My Location' : 'Get My Location'}
                     </button>
                   </div>
                 </div>
@@ -2573,6 +2746,7 @@ function App() {
                     center={tempMarker ? [tempMarker.lat, tempMarker.lng] : currentLocation ? [currentLocation.lat, currentLocation.lng] : [30.0444, 31.2357]}
                     zoom={tempMarker ? 15 : currentLocation ? 12 : 8}
                     style={{ height: '100%', width: '100%' }}
+                    ref={addMapRef}
                   >
                     <TileLayer
                       attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -2644,20 +2818,37 @@ function App() {
                 )}
               </div>
               
-              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+              <div style={{ 
+                display: 'flex', 
+                gap: isMobile ? '0.75rem' : '1rem', 
+                justifyContent: isMobile ? 'stretch' : 'flex-end', 
+                flexDirection: isMobile ? 'column-reverse' : 'row',
+                flexWrap: 'wrap',
+                marginTop: isMobile ? '1.5rem' : '1rem'
+              }}>
                 <button
                   type="button"
                   onClick={() => {
                     resetForm();
                     setCurrentView('list');
                   }}
-                  style={styles.secondaryButton}
+                  style={{
+                    ...styles.secondaryButton,
+                    width: isMobile ? '100%' : 'auto',
+                    padding: isMobile ? '0.875rem 1rem' : '0.5rem 1rem',
+                    fontSize: isMobile ? '1rem' : '0.875rem'
+                  }}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  style={styles.primaryButton}
+                  style={{
+                    ...styles.primaryButton,
+                    width: isMobile ? '100%' : 'auto',
+                    padding: isMobile ? '1rem 2rem' : '1rem 2rem',
+                    fontSize: isMobile ? '1rem' : '1rem'
+                  }}
                 >
                   {editingCustomer ? 'Update Customer' : 'Add Customer'}
                 </button>
