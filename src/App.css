@@ -1,0 +1,404 @@
+/* MTM Dark Grey Theme - Mobile-first responsive design */
+:root {
+  --mtm-orange: #e67e22;
+  --mtm-dark-grey: #1a1a1a;
+  --mtm-medium-grey: #2a2a2a;
+  --mtm-light-grey: #3a3a3a;
+  --mtm-card-bg: #2a2a2a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Remove all button focus outlines */
+button:focus {
+  outline: none !important;
+}
+
+button:active {
+  outline: none !important;
+}
+
+/* Desktop navigation button hover effects */
+.desktop-nav-button {
+  background: transparent !important;
+  color: #a0a0a0 !important;
+  border: none !important;
+  border-radius: 8px !important;
+  padding: 0.75rem 1.5rem !important;
+  font-size: 0.875rem !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  transition: all 0.3s ease !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 0.25rem !important;
+  min-width: 80px !important;
+}
+
+.desktop-nav-button:hover {
+  color: #ffffff !important;
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.desktop-nav-button.active {
+  color: #e67e22 !important;
+  background-color: rgba(230, 126, 34, 0.1) !important;
+}
+
+.desktop-nav-button.active:hover {
+  color: #e67e22 !important;
+  background-color: rgba(230, 126, 34, 0.1) !important;
+}
+
+/* Mobile navigation button styles */
+.mobile-nav-button {
+  background: none !important;
+  border: none !important;
+  color: #a0a0a0 !important;
+  font-size: 0.75rem !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  padding: 0.75rem 0.5rem !important;
+  border-radius: 12px !important;
+  transition: all 0.3s ease !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 0.25rem !important;
+  min-width: 70px !important;
+  flex: 1 !important;
+  outline: none !important;
+}
+
+.mobile-nav-button.active {
+  color: #e67e22 !important;
+  background-color: rgba(230, 126, 34, 0.1) !important;
+}
+
+/* Mobile actions dropdown */
+.actions-container {
+  position: relative;
+}
+
+.action-item:hover {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.action-item.danger:hover {
+  background-color: rgba(248, 113, 113, 0.1) !important;
+}
+
+.action-item.primary:hover {
+  background-color: rgba(230, 126, 34, 0.1) !important;
+}
+
+/* Custom notification animations */
+@keyframes slideIn {
+  0% { 
+    transform: translateX(100%); 
+    opacity: 0; 
+  }
+  100% { 
+    transform: translateX(0); 
+    opacity: 1; 
+  }
+}
+
+.notification {
+  animation: slideIn 0.3s ease-out;
+}
+
+/* Input focus states with MTM orange */
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--mtm-orange) !important;
+  box-shadow: 0 0 0 3px rgba(230, 126, 34, 0.2);
+}
+
+/* Mobile bottom navigation */
+@media (max-width: 768px) {
+  .mobile-bottom-nav {
+    display: flex !important;
+  }
+  
+  .desktop-nav {
+    display: none !important;
+  }
+  
+  body {
+    padding-bottom: 80px;
+  }
+}
+
+@media (min-width: 769px) {
+  .mobile-bottom-nav {
+    display: none !important;
+  }
+  
+  .desktop-nav {
+    display: flex !important;
+  }
+}
+
+/* Card hover effects */
+.customer-card:hover {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
+  transform: translateY(-4px) !important;
+  border-color: var(--mtm-orange) !important;
+  transition: all 0.3s ease !important;
+}
+
+/* Scrollbar styling for dark grey theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--mtm-dark-grey);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--mtm-light-grey);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--mtm-orange);
+}
+
+/* Custom placeholder styling */
+input::placeholder,
+textarea::placeholder {
+  color: #9ca3af !important;
+  opacity: 1;
+}
+
+/* Loading animation */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-spinner {
+  animation: spin 1s linear infinite;
+}
+
+/* Status badge animations */
+.status-badge {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  0% { opacity: 0; transform: scale(0.8); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* Map container responsive */
+@media (max-width: 768px) {
+  .map-container {
+    height: 300px !important;
+  }
+  
+  .map-view-container {
+    height: 50vh !important;
+  }
+}
+
+/* Button responsive sizing */
+@media (max-width: 480px) {
+  .button-group {
+    flex-direction: column;
+    width: 100%;
+  }
+  
+  .button-group button {
+    width: 100%;
+    margin: 0.25rem 0;
+  }
+}
+
+/* Text responsive sizing */
+@media (max-width: 480px) {
+  .title {
+    font-size: 1rem !important;
+  }
+  
+  .customer-name {
+    font-size: 1rem !important;
+  }
+  
+  .customer-info {
+    font-size: 0.75rem !important;
+  }
+}
+
+/* Dark grey themed popup content styling */
+.leaflet-popup-content {
+  background-color: var(--mtm-card-bg) !important;
+  color: #e2e8f0 !important;
+  border-radius: 0.5rem !important;
+}
+
+.leaflet-popup-content-wrapper {
+  background-color: var(--mtm-card-bg) !important;
+  color: #e2e8f0 !important;
+  border-radius: 0.5rem !important;
+  border: 1px solid var(--mtm-light-grey) !important;
+}
+
+.leaflet-popup-tip {
+  background-color: var(--mtm-card-bg) !important;
+}
+
+/* Dark grey themed map controls */
+.leaflet-control-zoom a {
+  background-color: var(--mtm-medium-grey) !important;
+  color: #ffffff !important;
+  border-color: var(--mtm-light-grey) !important;
+}
+
+.leaflet-control-zoom a:hover {
+  background-color: var(--mtm-orange) !important;
+}
+
+.leaflet-control-attribution {
+  background-color: rgba(42, 42, 42, 0.9) !important;
+  color: #e2e8f0 !important;
+  border: 1px solid var(--mtm-light-grey) !important;
+}
+
+.leaflet-control-attribution a {
+  color: var(--mtm-orange) !important;
+}
+
+/* Toast notifications with dark grey theme */
+.toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background-color: var(--mtm-card-bg);
+  color: #e2e8f0;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--mtm-light-grey);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+  z-index: 9999;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  0% { transform: translateX(100%); opacity: 0; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+
+/* Form validation styling with MTM colors */
+input:invalid {
+  border-color: #dc2626 !important;
+}
+
+input:valid {
+  border-color: var(--mtm-orange) !important;
+}
+
+/* Accessibility improvements with MTM orange */
+button:focus {
+  outline: none !important;
+}
+
+input:focus,
+select:focus {
+  outline: 2px solid var(--mtm-orange);
+  outline-offset: 2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  * {
+    border-color: #ffffff !important;
+  }
+  
+  button {
+    border: 2px solid #ffffff !important;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Logo styling */
+.logo {
+  transition: transform 0.2s ease-in-out;
+}
+
+.logo:hover {
+  transform: scale(1.05);
+}
+
+/* Navigation active state with MTM orange */
+.nav-button-active {
+  background-color: var(--mtm-orange) !important;
+  color: #ffffff !important;
+}
+
+/* Modern button styling */
+.modern-button {
+  background: linear-gradient(135deg, #4a4a4a 0%, #3a3a3a 100%) !important;
+  border: none !important;
+  border-radius: 12px !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  transition: all 0.3s ease !important;
+  cursor: pointer !important;
+}
+
+.modern-button:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3) !important;
+}
+
+.modern-button-active {
+  background: linear-gradient(135deg, #e67e22 0%, #d35400 100%) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 20px rgba(230, 126, 34, 0.4) !important;
+}
+
+/* Status badges with dark theme */
+.status-lead {
+  background-color: rgba(220, 38, 38, 0.1) !important;
+  color: #fca5a5 !important;
+  border: 1px solid rgba(220, 38, 38, 0.3);
+}
+
+.status-prospect {
+  background-color: rgba(230, 126, 34, 0.1) !important;
+  color: var(--mtm-orange) !important;
+  border: 1px solid rgba(230, 126, 34, 0.3);
+}
+
+.status-customer {
+  background-color: rgba(34, 197, 94, 0.1) !important;
+  color: #86efac !important;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.status-inactive {
+  background-color: rgba(107, 114, 128, 0.1) !important;
+  color: #d1d5db !important;
+  border: 1px solid rgba(107, 114, 128, 0.3);
+}
