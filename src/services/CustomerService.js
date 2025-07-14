@@ -150,7 +150,7 @@ class CustomerService {
     if (isOnline) {
       try {
         // Always fetch all customers, and join user_profiles for creator name
-        let query = this.supabase.from('customers').select('*,user_profiles(name)');
+        let query = this.supabase.from('customers').select('*, user_profiles!customers_created_by_fkey(name)');
         const { data, error } = await query.order('created_at', { ascending: false });
         if (error) throw error;
         // Update local storage

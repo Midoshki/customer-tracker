@@ -176,8 +176,15 @@ function App() {
   const [showMapSuggestions, setShowMapSuggestions] = useState(false);
   const [showAddMapSuggestions, setShowAddMapSuggestions] = useState(false);
 
+  // Helper: get creator name from customer object
+  const getCreatorName = (customer) => {
+    return customer.user_profiles?.name || 
+           (customer.user_profiles && customer.user_profiles[0]?.name) || 
+           'Unknown';
+  };
+
   // Helper: get unique creators for filter dropdown
-  const uniqueCreators = Array.from(new Set(customers.map(c => c.user_profiles?.name || 'Unknown')));
+  const uniqueCreators = Array.from(new Set(customers.map(getCreatorName)));
 
   // Helper: haversine formula for distance in km
   function getDistanceKm(lat1, lng1, lat2, lng2) {
@@ -658,7 +665,7 @@ function App() {
     // Status filter
     if (filterStatus && customer.status !== filterStatus) return false;
     // Created by filter
-    if (filterCreatedBy && (customer.user_profiles?.name || 'Unknown') !== filterCreatedBy) return false;
+    if (filterCreatedBy && getCreatorName(customer) !== filterCreatedBy) return false;
     // Date added filter
     if (filterDateFrom && (!customer.created_at || customer.created_at < filterDateFrom)) return false;
     if (filterDateTo && (!customer.created_at || customer.created_at > (filterDateTo + 'T23:59:59'))) return false;
@@ -1795,7 +1802,7 @@ function App() {
                                 <div style={{ opacity: 0.8 }}>{customer.address}</div>
                               </div>
                               <div style={{ fontSize: '0.75rem', color: '#e67e22', fontWeight: 500, marginBottom: '0.25rem' }}>
-                                Added by: {customer.user_profiles?.name || 'Unknown'}
+                                Added by: {getCreatorName(customer)}
                               </div>
                               {customer.notes && (
                                 <div style={{ marginBottom: '0.25rem', color: '#fbbf24', fontSize: '0.85em' }}>
@@ -1949,7 +1956,7 @@ function App() {
                           <div style={{ marginBottom: '0.25rem' }}>📞 {customer.phone}</div>
                           <div style={{ marginBottom: '0.25rem' }}>📍 {customer.address}</div>
                           <div style={{ fontSize: '0.75rem', color: '#e67e22', fontWeight: 500, marginBottom: '0.25rem' }}>
-                            Added by: {customer.user_profiles?.name || 'Unknown'}
+                            Added by: {getCreatorName(customer)}
                           </div>
                           {customer.notes && (
                             <div style={{ marginBottom: '0.25rem', color: '#fbbf24', fontSize: '0.85em' }}>
