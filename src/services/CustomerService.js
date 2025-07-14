@@ -98,11 +98,13 @@ class CustomerService {
   }
 
   async fetchCustomers() {
-    // First, fetch all customers
+    // First, fetch all customers - ensure we get ALL customers regardless of user
     const { data: customers, error } = await this.supabase
       .from('customers')
       .select('*')
       .order('created_at', { ascending: false });
+    
+    console.log('Raw customers from database:', customers?.length || 0, 'customers');
     
     if (error) {
       console.error('Database error:', error);
@@ -115,6 +117,7 @@ class CustomerService {
     
     // Get unique user IDs for batch fetching profiles
     const userIds = [...new Set(customers.map(c => c.created_by).filter(Boolean))];
+    console.log('Customer created_by IDs:', userIds);
     
     if (userIds.length > 0) {
       try {
@@ -124,6 +127,7 @@ class CustomerService {
           .in('id', userIds);
         
         if (!profileError && profiles) {
+          console.log('Fetched profiles:', profiles);
           // Create a map for faster lookup
           const profileMap = profiles.reduce((map, profile) => {
             map[profile.id] = profile;
@@ -135,8 +139,9 @@ class CustomerService {
             if (customer.created_by && profileMap[customer.created_by]) {
               customer.user_profiles = profileMap[customer.created_by];
             } else if (customer.created_by) {
-              // If no profile found, set a placeholder to avoid "Unknown"
-              customer.user_profiles = { id: customer.created_by, name: 'User' };
+              // If no profile found, log the missing user ID and set a placeholder
+              console.warn('No profile found for user ID:', customer.created_by);
+              customer.user_profiles = { id: customer.created_by, name: 'Unknown User' };
             }
           });
         } else {

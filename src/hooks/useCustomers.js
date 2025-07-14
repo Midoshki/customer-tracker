@@ -14,13 +14,7 @@ const useCustomers = (user) => {
   }
 
   const refreshCustomers = useCallback(async () => {
-    // Everyone can view customers, but you need to be authenticated to perform actions
-    if (!user) {
-      setCustomers([]);
-      setLoading(false);
-      return;
-    }
-
+    // Everyone can view customers, even if not authenticated
     setLoading(true);
     try {
       const customerData = await customerServiceRef.current.fetchCustomers();
@@ -31,7 +25,7 @@ const useCustomers = (user) => {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, []);
 
   useEffect(() => {
     refreshCustomers();
