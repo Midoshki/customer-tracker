@@ -26,19 +26,22 @@ const leafletControlsStyle = `
     appearance: none;
     background: transparent;
     cursor: pointer;
+    width: 100%;
+    height: 24px;
   }
   
   /* Track */
   input[type="range"]::-webkit-slider-track {
     background: #3a3a3a;
-    height: 4px;
-    border-radius: 2px;
+    height: 8px;
+    border-radius: 5px;
+    border: none;
   }
   
   input[type="range"]::-moz-range-track {
     background: #3a3a3a;
-    height: 4px;
-    border-radius: 2px;
+    height: 8px;
+    border-radius: 5px;
     border: none;
   }
   
@@ -46,30 +49,48 @@ const leafletControlsStyle = `
   input[type="range"]::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
-    height: 16px;
-    width: 16px;
+    height: 20px;
+    width: 20px;
     border-radius: 50%;
     background: #e67e22;
     cursor: pointer;
     margin-top: -6px;
+    box-shadow: 0 0 0 3px rgba(230, 126, 34, 0.3);
+    transition: all 0.3s ease;
   }
   
   input[type="range"]::-moz-range-thumb {
-    height: 16px;
-    width: 16px;
+    height: 20px;
+    width: 20px;
     border-radius: 50%;
     background: #e67e22;
     cursor: pointer;
     border: none;
+    box-shadow: 0 0 0 3px rgba(230, 126, 34, 0.3);
+    transition: all 0.3s ease;
   }
   
-  /* Focus styles */
+  /* Hover and focus styles */
+  input[type="range"]::-webkit-slider-thumb:hover {
+    background: #d35400;
+    box-shadow: 0 0 0 5px rgba(230, 126, 34, 0.4);
+    transform: scale(1.1);
+  }
+  
+  input[type="range"]::-moz-range-thumb:hover {
+    background: #d35400;
+    box-shadow: 0 0 0 5px rgba(230, 126, 34, 0.4);
+    transform: scale(1.1);
+  }
+  
   input[type="range"]:focus::-webkit-slider-thumb {
-    box-shadow: 0 0 0 3px rgba(230, 126, 34, 0.3);
+    outline: none;
+    box-shadow: 0 0 0 5px rgba(230, 126, 34, 0.4);
   }
   
   input[type="range"]:focus::-moz-range-thumb {
-    box-shadow: 0 0 0 3px rgba(230, 126, 34, 0.3);
+    outline: none;
+    box-shadow: 0 0 0 5px rgba(230, 126, 34, 0.4);
   }
 `;
 
@@ -2108,10 +2129,11 @@ function App() {
             </select>
             <input type='date' value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} style={styles.input} placeholder='From date' />
             <input type='date' value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} style={styles.input} placeholder='To date' />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', minWidth: '200px' }}>
-              <label style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
-                Radius: {filterRadius}km
-              </label>
+            <div className="radius-slider-container" style={{ minWidth: '200px' }}>
+              <div className="radius-slider-label">
+                <span>Radius</span>
+                <span className="radius-value">{filterRadius}km</span>
+              </div>
               <input 
                 type='range' 
                 min='1' 
@@ -2119,13 +2141,8 @@ function App() {
                 value={filterRadius} 
                 onChange={e => setFilterRadius(e.target.value)}
                 style={{
-                  width: '100%',
                   outline: 'none',
-                  opacity: 0.7,
-                  transition: 'opacity 0.2s',
                 }}
-                onMouseOver={e => e.target.style.opacity = 1}
-                onMouseOut={e => e.target.style.opacity = 0.7}
               />
             </div>
             <button
@@ -2696,39 +2713,6 @@ function App() {
                   </div>
                   
                   <div style={styles.formGroup}>
-                    <label style={styles.label}>Province/Governorate *</label>
-                    <select
-                      style={styles.select}
-                      value={formData.province}
-                      onChange={(e) => {
-                        setFormData({...formData, province: e.target.value, area: ''});
-                      }}
-                      required
-                    >
-                      <option value="">Select Province/Governorate</option>
-                      {Object.keys(egyptianProvinces).sort().map(province => (
-                        <option key={province} value={province}>{province}</option>
-                      ))}
-                    </select>
-                  </div>
-                  
-                  <div style={styles.formGroup}>
-                    <label style={styles.label}>Area/District *</label>
-                    <select
-                      style={styles.select}
-                      value={formData.area}
-                      onChange={(e) => setFormData({...formData, area: e.target.value})}
-                      required
-                      disabled={!formData.province}
-                    >
-                      <option value="">Select Area/District</option>
-                      {formData.province && getAvailableAreas(formData.province).map(area => (
-                        <option key={area} value={area}>{area}</option>
-                      ))}
-                    </select>
-                  </div>
-                  
-                  <div style={styles.formGroup}>
                     <label style={styles.label}>Notes</label>
                     <textarea
                       style={{ ...styles.input, minHeight: '60px', resize: 'vertical' }}
@@ -2790,39 +2774,6 @@ function App() {
                         <option value="prospect">Prospect</option>
                         <option value="customer">Customer</option>
                         <option value="inactive">Inactive</option>
-                      </select>
-                    </div>
-                    
-                    <div style={styles.formGroup}>
-                      <label style={styles.label}>Province/Governorate *</label>
-                      <select
-                        style={styles.select}
-                        value={formData.province}
-                        onChange={(e) => {
-                          setFormData({...formData, province: e.target.value, area: ''});
-                        }}
-                        required
-                      >
-                        <option value="">Select Province/Governorate</option>
-                        {Object.keys(egyptianProvinces).sort().map(province => (
-                          <option key={province} value={province}>{province}</option>
-                        ))}
-                      </select>
-                    </div>
-                    
-                    <div style={styles.formGroup}>
-                      <label style={styles.label}>Area/District *</label>
-                      <select
-                        style={styles.select}
-                        value={formData.area}
-                        onChange={(e) => setFormData({...formData, area: e.target.value})}
-                        required
-                        disabled={!formData.province}
-                      >
-                        <option value="">Select Area/District</option>
-                        {formData.province && getAvailableAreas(formData.province).map(area => (
-                          <option key={area} value={area}>{area}</option>
-                        ))}
                       </select>
                     </div>
                   </div>
