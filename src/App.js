@@ -328,6 +328,9 @@ function App() {
         const { data, error } = await supabase.auth.signUp({
           email: authData.email,
           password: authData.password,
+          options: {
+            data: { name: authData.name }
+          }
         });
         if (error) throw error;
         
