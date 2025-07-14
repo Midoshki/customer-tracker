@@ -2049,48 +2049,6 @@ function App() {
                       attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                       url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     />
-                    {currentLocation && (
-                      <Marker
-                        position={[currentLocation.lat, currentLocation.lng]}
-                        icon={currentLocationIcon}
-                      >
-                        <Popup>
-                          <div style={{ textAlign: 'center' }}>
-                            <p style={{ margin: '0 0 10px 0', fontWeight: '500', color: '#10b981' }}>📍 Your Current Location</p>
-                            <button
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setTempMarker(currentLocation);
-                              }}
-                              style={{ ...styles.primaryButton, padding: '0.5rem 1rem', fontSize: '0.75rem' }}
-                            >
-                              Use This Location
-                            </button>
-                          </div>
-                        </Popup>
-                      </Marker>
-                    )}
-                    {customers
-                      .filter(c => !editingCustomer || c.id !== editingCustomer.id)
-                      .map(customer => (
-                        <Marker
-                          key={`existing-${customer.id}`}
-                          position={[customer.latitude, customer.longitude]}
-                          icon={existingIcon}
-                        >
-                          <Popup>
-                            <div style={{ minWidth: '150px', textAlign: 'center' }}>
-                              <h4 style={{ margin: '0 0 10px 0', fontSize: '0.875rem', fontWeight: '600', color: '#64748b' }}>
-                                {customer.name}
-                              </h4>
-                              <p style={{ margin: '0', fontSize: '0.75rem', color: '#9ca3af' }}>
-                                Existing customer
-                              </p>
-                            </div>
-                          </Popup>
-                        </Marker>
-                      ))}
                     {tempMarker && (
                       <Marker position={[tempMarker.lat, tempMarker.lng]} icon={filterCenterIcon}>
                         <Popup>
