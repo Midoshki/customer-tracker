@@ -590,14 +590,15 @@ function App() {
     }
   };
 
-  // Check authentication on load
+  // Initialize authentication once on mount
   useEffect(() => {
-    // Only check user if we don't already have one
-    // The auth state listener will handle all auth changes
+    let authSubscription = null;
+    
     const initAuth = async () => {
       try {
+        // Check if user is already logged in
         const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user && !user) {
+        if (session?.user) {
           setUser(session.user);
           await checkIfAdmin(session.user.id);
         }
@@ -606,22 +607,41 @@ function App() {
       }
     };
     
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        setUser(session.user);
+        await checkIfAdmin(session.user.id);
+      } else {
+        setUser(null);
+        setIsAdmin(false);
+        setShowProfileMenu(false);
+        setShowActionsMenu({});
+      }
+    });
+    
+    authSubscription = subscription;
     initAuth();
     
-    // Close profile menu when clicking outside
+    return () => {
+      if (authSubscription) {
+        authSubscription.unsubscribe();
+      }
+    };
+  }, []); // Empty dependency array - run only once on mount
+
+  // Separate effect for click outside handlers
+  useEffect(() => {
     const handleClickOutside = (event) => {
       if (showProfileMenu && !event.target.closest('.profile-container')) {
         setShowProfileMenu(false);
       }
-      // Close actions menu when clicking outside
       if (Object.keys(showActionsMenu).length > 0 && !event.target.closest('.actions-container')) {
         setShowActionsMenu({});
       }
-      // Close map suggestions when clicking outside
       if (showMapSuggestions && !event.target.closest('.map-search-container')) {
         setShowMapSuggestions(false);
       }
-      // Close add map suggestions when clicking outside
       if (showAddMapSuggestions && !event.target.closest('.add-map-search-container')) {
         setShowAddMapSuggestions(false);
       }
@@ -629,24 +649,10 @@ function App() {
     
     document.addEventListener('mousedown', handleClickOutside);
     
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session?.user) {
-        setUser(session.user);
-        checkIfAdmin(session.user.id);
-      } else {
-        // User is logged out
-        setUser(null);
-        setIsAdmin(false);
-        setShowProfileMenu(false);
-        setShowActionsMenu({});
-      }
-    });
-
-          return () => {
-        subscription.unsubscribe();
-        document.removeEventListener('mousedown', handleClickOutside);
-      };
-        }, [showProfileMenu, showActionsMenu, showMapSuggestions, showAddMapSuggestions]);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showProfileMenu, showActionsMenu, showMapSuggestions, showAddMapSuggestions]);
 
 
 
@@ -703,22 +709,10 @@ function App() {
   };
 
   const handleLogout = async () => {
-    // Immediately close menus to prevent UI issues
-    setShowProfileMenu(false);
-    setShowActionsMenu({});
-    
     try {
-      // Simple logout - let Supabase handle the session cleanup
       await supabase.auth.signOut();
-      
-      // Clear local data
-      localStorage.removeItem('customers');
-      
     } catch (error) {
       console.error('Logout error:', error);
-      // If logout fails, force clear state
-      setUser(null);
-      setIsAdmin(false);
     }
   };
 
