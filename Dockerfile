@@ -7,10 +7,18 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies
-RUN npm ci --only=production
+RUN npm ci
 
 # Copy source code
 COPY . .
+
+# Build args for environment variables
+ARG REACT_APP_SUPABASE_URL
+ARG REACT_APP_SUPABASE_KEY
+
+# Set environment variables for build
+ENV REACT_APP_SUPABASE_URL=$REACT_APP_SUPABASE_URL
+ENV REACT_APP_SUPABASE_KEY=$REACT_APP_SUPABASE_KEY
 
 # Build the app
 RUN npm run build
