@@ -8,4 +8,11 @@ services:
     ports:
       - "8080:80"
     restart: unless-stopped
-    container_name: customer-tracker-app 
+    container_name: customer-tracker-app
+    networks:
+      - default
+      - dokploy
+
+networks:
+  dokploy:
+    external: true 
