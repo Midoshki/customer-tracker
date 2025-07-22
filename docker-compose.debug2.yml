@@ -1,0 +1,25 @@
+services:
+  customer-tracker:
+    build:
+      context: .
+      args:
+        - REACT_APP_SUPABASE_URL=${REACT_APP_SUPABASE_URL}
+        - REACT_APP_SUPABASE_KEY=${REACT_APP_SUPABASE_KEY}
+    restart: unless-stopped
+    networks:
+      - dokploy-network
+    ports:
+      - "8080:80"  # Temporary external port for debugging
+    labels:
+      - "debug=true"
+      - "service=customer-tracker"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+networks:
+  dokploy-network:
+    external: true 
