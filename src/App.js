@@ -7,6 +7,7 @@ import './App.css';
 import useCustomers from './hooks/useCustomers';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
+import OfferManager from './components/OfferManager';
 
 // Add CSS for Leaflet controls z-index fix and range slider styling
 const leafletControlsStyle = `
@@ -215,6 +216,7 @@ function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentView, setCurrentView] = useState('list');
   const [editingCustomer, setEditingCustomer] = useState(null);
+  const [selectedCustomerForOffer, setSelectedCustomerForOffer] = useState(null);
   const [tempMarker, setTempMarker] = useState(null);
   const [currentLocation, setCurrentLocation] = useState(null);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -906,6 +908,12 @@ function App() {
     setTempMarker({ lat: customer.latitude, lng: customer.longitude });
     setCurrentView('add');
     setShowProfileMenu(false);
+  };
+
+  const createPriceOffer = (customer) => {
+    setSelectedCustomerForOffer(customer);
+    setCurrentView('offers');
+    setShowActionsMenu({});
   };
 
   const handleDelete = async (customer) => {
@@ -2073,6 +2081,13 @@ function App() {
                 <span>Map</span>
               </button>
               <button
+                onClick={() => setCurrentView('offers')}
+                className={`desktop-nav-button ${currentView === 'offers' ? 'active' : ''}`}
+              >
+                <span style={{ fontSize: '1.25rem' }}>💰</span>
+                <span>Offers</span>
+              </button>
+              <button
                 onClick={() => {
                   resetForm();
                   setCurrentView('add');
@@ -2161,6 +2176,13 @@ function App() {
           >
             <span style={{ fontSize: '1.5rem' }}>🗺️</span>
             <span>Map</span>
+          </button>
+          <button
+            onClick={() => setCurrentView('offers')}
+            className={`mobile-nav-button ${currentView === 'offers' ? 'active' : ''}`}
+          >
+            <span style={{ fontSize: '1.5rem' }}>💰</span>
+            <span>Offers</span>
           </button>
           <button
             onClick={() => {
@@ -2436,6 +2458,21 @@ function App() {
                                         onClick={(e) => {
                                           e.preventDefault();
                                           e.stopPropagation();
+                                          createPriceOffer(customer);
+                                        }}
+                                        style={{
+                                          ...styles.actionItem,
+                                          color: '#10b981'
+                                        }}
+                                        onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(16, 185, 129, 0.1)'}
+                                        onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                                      >
+                                        💰 Create Price Offer
+                                      </button>
+                                      <button
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
                                           setNotification({
                                             show: true,
                                             message: `Are you sure you want to delete ${customer.name}?`,
@@ -2649,6 +2686,32 @@ function App() {
                                     onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
                                   >
                                     ✏️ Edit Details
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      createPriceOffer(customer);
+                                    }}
+                                    style={{
+                                      width: '100%',
+                                      padding: '0.5rem 0.75rem',
+                                      backgroundColor: 'transparent',
+                                      border: 'none',
+                                      color: '#10b981',
+                                      fontSize: '0.75rem',
+                                      fontWeight: '500',
+                                      cursor: 'pointer',
+                                      borderRadius: '4px',
+                                      transition: 'all 0.3s ease',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '0.5rem'
+                                    }}
+                                    onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(16, 185, 129, 0.1)'}
+                                    onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                                  >
+                                    💰 Create Price Offer
                                   </button>
                                   <button
                                     onClick={(e) => {
@@ -3431,6 +3494,18 @@ function App() {
               </div>
             </form>
           </div>
+        )}
+
+        {currentView === 'offers' && (
+          <OfferManager
+            selectedCustomer={selectedCustomerForOffer}
+            onBack={() => {
+              setCurrentView('list');
+              setSelectedCustomerForOffer(null);
+            }}
+            styles={styles}
+            isMobile={isMobile}
+          />
         )}
       </main>
 
