@@ -1248,11 +1248,19 @@ function App() {
     },
     authContainer: {
       minHeight: '100vh',
+      height: '100vh',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: '#1a1a1a',
-      padding: '1rem'
+      padding: '1rem',
+      margin: 0,
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      width: '100%'
     },
     authCard: {
       backgroundColor: '#2a2a2a',
@@ -2165,44 +2173,6 @@ function App() {
             </select>
             <input type='date' value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} style={styles.input} placeholder='From date' />
             <input type='date' value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} style={styles.input} placeholder='To date' />
-            <div className="radius-slider-container" style={{ minWidth: '200px' }}>
-              <div className="radius-slider-label">
-                <span>Radius</span>
-                <span className="radius-value">{filterRadius}km</span>
-              </div>
-              <input 
-                type='range' 
-                min='1' 
-                max='80' 
-                value={filterRadius} 
-                onChange={e => setFilterRadius(e.target.value)}
-                style={{
-                  outline: 'none',
-                }}
-              />
-            </div>
-            <button
-              style={styles.secondaryButton}
-              onClick={() => {
-                if (currentLocation) setFilterCenter(currentLocation);
-                else requestUserLocation();
-              }}
-              title='Use my location as center'
-            >
-              📍 Use My Location
-            </button>
-            <button
-              style={styles.secondaryButton}
-              onClick={() => setFilterCenter(null)}
-              title='Clear map center filter'
-            >
-              ❌ Clear Center
-            </button>
-            {filterCenter && (
-              <span style={{ color: '#e67e22', fontSize: '0.9em' }}>
-                Center: {filterCenter.lat.toFixed(4)}, {filterCenter.lng.toFixed(4)}
-              </span>
-            )}
           </div>
         )}
 
@@ -2701,6 +2671,59 @@ function App() {
                 </div>
               )}
             </div>
+            
+            {/* Map-specific filters */}
+            <div style={{ 
+              display: 'flex', 
+              flexWrap: 'wrap', 
+              gap: '1rem', 
+              marginBottom: '1rem', 
+              alignItems: 'center', 
+              background: '#232323', 
+              borderRadius: '8px', 
+              padding: '1rem',
+              border: '1px solid #3a3a3a'
+            }}>
+              <div className="radius-slider-container" style={{ minWidth: '200px' }}>
+                <div className="radius-slider-label">
+                  <span>Radius</span>
+                  <span className="radius-value">{filterRadius}km</span>
+                </div>
+                <input 
+                  type='range' 
+                  min='1' 
+                  max='80' 
+                  value={filterRadius} 
+                  onChange={e => setFilterRadius(e.target.value)}
+                  style={{
+                    outline: 'none',
+                  }}
+                />
+              </div>
+              <button
+                style={styles.secondaryButton}
+                onClick={() => {
+                  if (currentLocation) setFilterCenter(currentLocation);
+                  else requestUserLocation();
+                }}
+                title='Use my location as center'
+              >
+                📍 Use My Location
+              </button>
+              <button
+                style={styles.secondaryButton}
+                onClick={() => setFilterCenter(null)}
+                title='Clear map center filter'
+              >
+                ❌ Clear Center
+              </button>
+              {filterCenter && (
+                <span style={{ color: '#e67e22', fontSize: '0.9em' }}>
+                  Center: {filterCenter.lat.toFixed(4)}, {filterCenter.lng.toFixed(4)}
+                </span>
+              )}
+            </div>
+            
             <div style={{ height: '70vh', borderRadius: '0.5rem', overflow: 'hidden', border: '1px solid #475569', position: 'relative', zIndex: 1 }}>
               <MapContainer
                 className="custom-leaflet-map"
