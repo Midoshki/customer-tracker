@@ -6,6 +6,9 @@ import L from 'leaflet';
 import './App.css';
 import useCustomers from './hooks/useCustomers';
 import axios from 'axios';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 
 // Add CSS for Leaflet controls z-index fix and range slider styling
 const leafletControlsStyle = `
@@ -340,6 +343,184 @@ function App() {
               Math.sin(dLng/2) * Math.sin(dLng/2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     return R * c;
+  }
+
+  // Export filtered customers to PDF
+  function exportToPDF(customers, filters) {
+    const doc = new jsPDF();
+    
+    // Add title
+    doc.setFontSize(18);
+    doc.text('Customer Export Report', 14, 15);
+    
+    // Add export info
+    doc.setFontSize(12);
+    doc.text(`Export Date: ${new Date().toLocaleString()}`, 14, 25);
+    doc.text(`Total Records: ${customers.length}`, 14, 32);
+    
+    // Add filter info if any filters are applied
+    let yPos = 40;
+    if (filters.searchTerm || filters.filterStatus || filters.filterType || 
+        filters.filterCreatedBy || filters.filterDateFrom || filters.filterDateTo || 
+        filters.filterProvince || filters.filterArea || filters.filterRadius) {
+      doc.setFontSize(10);
+      doc.text('Applied Filters:', 14, yPos);
+      yPos += 7;
+      
+      if (filters.searchTerm) {
+        doc.text(`• Search: ${filters.searchTerm}`, 16, yPos);
+        yPos += 5;
+      }
+      if (filters.filterStatus) {
+        doc.text(`• Status: ${filters.filterStatus}`, 16, yPos);
+        yPos += 5;
+      }
+      if (filters.filterType) {
+        doc.text(`• Type: ${filters.filterType}`, 16, yPos);
+        yPos += 5;
+      }
+      if (filters.filterCreatedBy) {
+        doc.text(`• Created By: ${filters.filterCreatedBy}`, 16, yPos);
+        yPos += 5;
+      }
+      if (filters.filterDateFrom) {
+        doc.text(`• From Date: ${filters.filterDateFrom}`, 16, yPos);
+        yPos += 5;
+      }
+      if (filters.filterDateTo) {
+        doc.text(`• To Date: ${filters.filterDateTo}`, 16, yPos);
+        yPos += 5;
+      }
+      if (filters.filterProvince) {
+        doc.text(`• Province: ${filters.filterProvince}`, 16, yPos);
+        yPos += 5;
+      }
+      if (filters.filterArea) {
+        doc.text(`• Area: ${filters.filterArea}`, 16, yPos);
+        yPos += 5;
+      }
+      if (filters.filterRadius && filters.filterCenter) {
+        doc.text(`• Radius: ${filters.filterRadius}km from center`, 16, yPos);
+        yPos += 5;
+      }
+      yPos += 5;
+    }
+    
+    // Prepare table data
+    const tableData = customers.map(customer => [
+      customer.name || '',
+      customer.email || '',
+      customer.phone || '',
+      customer.status || '',
+      customer.type || '',
+      customer.province || '',
+      customer.area || '',
+      customer.address || '',
+      customer.contact_name || '',
+      customer.created_at ? new Date(customer.created_at).toLocaleDateString() : '',
+      getCreatorName(customer)
+    ]);
+    
+    // Add table
+    doc.autoTable({
+      head: [['Name', 'Email', 'Phone', 'Status', 'Type', 'Province', 'Area', 'Address', 'Contact', 'Created', 'Creator']],
+      body: tableData,
+      startY: yPos,
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [230, 126, 34] },
+      columnStyles: {
+        0: { cellWidth: 20 }, // Name
+        1: { cellWidth: 25 }, // Email
+        2: { cellWidth: 18 }, // Phone
+        3: { cellWidth: 15 }, // Status
+        4: { cellWidth: 20 }, // Type
+        5: { cellWidth: 18 }, // Province
+        6: { cellWidth: 18 }, // Area
+        7: { cellWidth: 25 }, // Address
+        8: { cellWidth: 18 }, // Contact
+        9: { cellWidth: 18 }, // Created
+        10: { cellWidth: 15 }  // Creator
+      },
+      margin: { left: 14, right: 14 },
+      pageBreak: 'auto'
+    });
+    
+    // Save the PDF
+    doc.save(`customers-export-${new Date().toISOString().split('T')[0]}.pdf`);
+  }
+
+  // Export filtered customers to Excel
+  function exportToExcel(customers, filters) {
+    // Prepare data for Excel
+    const excelData = customers.map(customer => ({
+      'Name': customer.name || '',
+      'Email': customer.email || '',
+      'Phone': customer.phone || '',
+      'Status': customer.status || '',
+      'Type': customer.type || '',
+      'Province': customer.province || '',
+      'Area': customer.area || '',
+      'Address': customer.address || '',
+      'Contact Name': customer.contact_name || '',
+      'Notes': customer.notes || '',
+      'Latitude': customer.latitude || '',
+      'Longitude': customer.longitude || '',
+      'Created Date': customer.created_at ? new Date(customer.created_at).toLocaleDateString() : '',
+      'Created By': getCreatorName(customer)
+    }));
+    
+    // Create workbook and worksheet
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(excelData);
+    
+    // Set column widths
+    const colWidths = [
+      { wch: 20 }, // Name
+      { wch: 25 }, // Email
+      { wch: 15 }, // Phone
+      { wch: 12 }, // Status
+      { wch: 18 }, // Type
+      { wch: 15 }, // Province
+      { wch: 15 }, // Area
+      { wch: 30 }, // Address
+      { wch: 20 }, // Contact Name
+      { wch: 40 }, // Notes
+      { wch: 12 }, // Latitude
+      { wch: 12 }, // Longitude
+      { wch: 12 }, // Created Date
+      { wch: 15 }  // Created By
+    ];
+    ws['!cols'] = colWidths;
+    
+    // Add worksheet to workbook
+    XLSX.utils.book_append_sheet(wb, ws, 'Customers');
+    
+    // Create summary sheet with filter info
+    const summaryData = [
+      { 'Property': 'Export Date', 'Value': new Date().toLocaleString() },
+      { 'Property': 'Total Records', 'Value': customers.length },
+      { 'Property': '', 'Value': '' }
+    ];
+    
+    // Add filter information to summary
+    if (filters.searchTerm) summaryData.push({ 'Property': 'Search Term', 'Value': filters.searchTerm });
+    if (filters.filterStatus) summaryData.push({ 'Property': 'Status Filter', 'Value': filters.filterStatus });
+    if (filters.filterType) summaryData.push({ 'Property': 'Type Filter', 'Value': filters.filterType });
+    if (filters.filterCreatedBy) summaryData.push({ 'Property': 'Created By Filter', 'Value': filters.filterCreatedBy });
+    if (filters.filterDateFrom) summaryData.push({ 'Property': 'From Date', 'Value': filters.filterDateFrom });
+    if (filters.filterDateTo) summaryData.push({ 'Property': 'To Date', 'Value': filters.filterDateTo });
+    if (filters.filterProvince) summaryData.push({ 'Property': 'Province Filter', 'Value': filters.filterProvince });
+    if (filters.filterArea) summaryData.push({ 'Property': 'Area Filter', 'Value': filters.filterArea });
+    if (filters.filterRadius && filters.filterCenter) {
+      summaryData.push({ 'Property': 'Radius Filter', 'Value': `${filters.filterRadius}km from center` });
+    }
+    
+    const summaryWs = XLSX.utils.json_to_sheet(summaryData);
+    summaryWs['!cols'] = [{ wch: 20 }, { wch: 40 }];
+    XLSX.utils.book_append_sheet(wb, summaryWs, 'Export Summary');
+    
+    // Save the Excel file
+    XLSX.writeFile(wb, `customers-export-${new Date().toISOString().split('T')[0]}.xlsx`);
   }
 
   // Helper: parse Google Maps link for coordinates
@@ -2101,7 +2282,7 @@ function App() {
 
       <main style={styles.content}>
         {(currentView === 'list' || currentView === 'map') && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
             <input
               type="text"
               placeholder="Search customers by name, email, phone, address, or status... (Arabic supported)"
@@ -2109,25 +2290,99 @@ function App() {
               onChange={e => setSearchTerm(e.target.value)}
               style={styles.searchInput}
             />
-            <button
-              style={{
-                ...styles.secondaryButton,
-                padding: '0.75rem 1rem',
-                height: '48px', // match search input height
-                minWidth: 'unset',
-                fontSize: '1rem',
-                lineHeight: 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                whiteSpace: 'nowrap',
-                margin: 0,
-                marginTop: '-20px'
-              }}
-              onClick={() => setShowFilters(f => !f)}
-            >
-              Filters
-            </button>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <button
+                style={{
+                  ...styles.secondaryButton,
+                  padding: '0.75rem 1rem',
+                  height: '48px', // match search input height
+                  minWidth: 'unset',
+                  fontSize: '1rem',
+                  lineHeight: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  whiteSpace: 'nowrap',
+                  margin: 0,
+                  marginTop: '-20px'
+                }}
+                onClick={() => setShowFilters(f => !f)}
+              >
+                Filters
+              </button>
+              
+              {filteredCustomers.length > 0 && (
+                <>
+                  <button
+                    style={{
+                      ...styles.primaryButton,
+                      padding: '0.75rem 1rem',
+                      height: '48px',
+                      minWidth: 'unset',
+                      fontSize: '0.9rem',
+                      lineHeight: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      whiteSpace: 'nowrap',
+                      margin: 0,
+                      marginTop: '-20px',
+                      backgroundColor: '#e67e22',
+                      gap: '0.5rem'
+                    }}
+                    onClick={() => exportToPDF(filteredCustomers, {
+                      searchTerm,
+                      filterStatus,
+                      filterType,
+                      filterCreatedBy,
+                      filterDateFrom,
+                      filterDateTo,
+                      filterProvince,
+                      filterArea,
+                      filterRadius,
+                      filterCenter
+                    })}
+                    title="Export filtered customers to PDF"
+                  >
+                    📄 PDF
+                  </button>
+                  
+                  <button
+                    style={{
+                      ...styles.primaryButton,
+                      padding: '0.75rem 1rem',
+                      height: '48px',
+                      minWidth: 'unset',
+                      fontSize: '0.9rem',
+                      lineHeight: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      whiteSpace: 'nowrap',
+                      margin: 0,
+                      marginTop: '-20px',
+                      backgroundColor: '#10b981',
+                      gap: '0.5rem'
+                    }}
+                    onClick={() => exportToExcel(filteredCustomers, {
+                      searchTerm,
+                      filterStatus,
+                      filterType,
+                      filterCreatedBy,
+                      filterDateFrom,
+                      filterDateTo,
+                      filterProvince,
+                      filterArea,
+                      filterRadius,
+                      filterCenter
+                    })}
+                    title="Export filtered customers to Excel"
+                  >
+                    📊 Excel
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         )}
 
